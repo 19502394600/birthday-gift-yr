@@ -93,7 +93,7 @@
       {
         role: "大家的祝福",
         title: "想对你说的话",
-        src: "assets/videos/blessing.mp4",
+        src: "https://19502394600.github.io/birthday-gift-yr/assets/videos/blessing.mp4",
         poster: "",
         hint: "",
       },
