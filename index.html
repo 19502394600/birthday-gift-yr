@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#080d18" />
+    <title>小杨同学 | 生日快乐</title>
+    <meta name="description" content="私人生日沉浸式纪念网站" />
+    <link rel="stylesheet" href="styles.css?v=20260905n" />
+  </head>
+  <body>
+    <div id="app">
+      <section class="page page-login active" id="loginPage" data-chapter="密码">
+        <div class="center-wrap login-card">
+          <img class="gift-avatar" src="assets/images/avatar-square.jpg" alt="蜡笔小新和小白的生日头像" />
+          <h1 class="title">输入密码，开启惊喜</h1>
+          <p class="subtitle">提示：8 位数字</p>
+          <input id="passwordInput" class="password" type="password" placeholder="请输入密码" maxlength="16" />
+          <button id="enterBtn" class="btn" type="button">进入</button>
+          <div id="loginError" class="error" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="page page-meteor" id="meteorPage" data-chapter="流星雨">
+        <video id="meteorVideo" class="meteor-video" loop playsinline webkit-playsinline preload="metadata">
+          <source src="assets/reference/meteor-reference.mp4" type="video/mp4" />
+        </video>
+        <div class="meteor-retouch"></div>
+        <div class="meteor-dim"></div>
+        <div class="overlay">
+          <div class="inner">
+            <h2 id="meteorTitle" class="glow-title meteor-title" data-text="小杨同学，生日快乐！">小杨同学，生日快乐！</h2>
+            <p id="meteorSub" class="glow-sub meteor-sub">看着流星划过夜空，所有好运都在向你靠近。</p>
+            <button class="btn delayed-btn" id="meteorNextBtn" type="button" disabled>开启礼物</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-countdown" id="countdownPage" data-chapter="倒计时">
+        <iframe
+          class="countdown-frame"
+          id="countdownFrame"
+          data-src="countdown-3d-demo/?embedded=1&amp;v=20260905f"
+          title="3D 水晶生日倒计时和蛋糕"
+          allow="autoplay; fullscreen"
+        ></iframe>
+        <div class="countdown-actions">
+          <button class="ghost-btn" id="skipCountdownBtn" type="button">跳过</button>
+          <button class="btn delayed-btn" id="countdownNextBtn" type="button" disabled>继续</button>
+        </div>
+      </section>
+
+      <section class="page page-gallery" id="galleryPage" data-chapter="Dazz 胶卷">
+        <div class="gallery-shell">
+          <header class="section-head">
+            <p class="eyebrow">Dazz Film Projector</p>
+            <h2>把时间放进一台老放映机</h2>
+            <p>一张照片，一次快门，把一路走来的时间慢慢放亮。</p>
+          </header>
+
+          <div class="dazz-stage">
+            <button class="round-nav" id="prevPhotoBtn" type="button" aria-label="上一张">‹</button>
+            <figure class="dazz-card" id="dazzCard">
+              <div class="film-perf film-perf-top" aria-hidden="true"></div>
+              <div class="photo-window" id="photoWindow"></div>
+              <figcaption>
+                <span id="photoCounter">01 / 45</span>
+              </figcaption>
+              <div class="dazz-date">2026 09 07</div>
+              <div class="film-perf film-perf-bottom" aria-hidden="true"></div>
+            </figure>
+            <button class="round-nav" id="nextPhotoBtn" type="button" aria-label="下一张">›</button>
+          </div>
+
+          <div class="actions">
+            <button class="ghost-btn" id="zoomPhotoBtn" type="button">再放大查看</button>
+            <button class="btn delayed-btn" id="finishGalleryBtn" type="button" disabled>继续</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-message" id="messagePage" data-chapter="留言板">
+        <div class="message-shell">
+          <div class="message-title">
+            <p class="eyebrow">Message Board</p>
+            <h2>留言板</h2>
+          </div>
+          <article class="message-paper board-paper">
+            <div id="messageText" class="board-grid"></div>
+            <span class="cursor" id="messageCursor" aria-hidden="true" hidden></span>
+          </article>
+          <div class="actions">
+            <button class="ghost-btn" id="skipMessageBtn" type="button" hidden>显示留言板</button>
+            <button class="btn egg-btn visible" id="eggBtn" type="button">继续</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-videos" id="videosPage" data-chapter="祝福视频">
+        <div class="video-shell">
+          <header class="section-head">
+            <p class="eyebrow">Blessing Videos</p>
+            <h2>来自大家的生日祝福</h2>
+            <p>把每一句祝福，都留在二十岁的这一刻。</p>
+          </header>
+          <div class="video-grid" id="videoGrid"></div>
+          <div class="video-actions" id="videoActions" hidden>
+            <button class="btn" id="videosNextBtn" type="button" disabled>继续 <span aria-hidden="true">→</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-blessing" id="blessingPage" data-chapter="祝福语">
+        <article class="blessing-card" id="blessingCard">
+          <p class="eyebrow">My Confession</p>
+          <h2>来自远方一个帅气男友的一封信</h2>
+          <div id="blessingText"></div>
+          <span class="cursor blessing-cursor" id="blessingCursor" aria-hidden="true"></span>
+          <button class="btn delayed-btn" id="heartStartBtn" type="button" disabled>继续</button>
+        </article>
+      </section>
+
+      <section class="page page-heart" id="heartPage" data-chapter="爱心弹窗">
+        <div class="heart-layer" id="heartLayer"></div>
+        <div class="heart-copy">
+          <p class="eyebrow">Heart Popup</p>
+          <h2>爱心展示墙</h2>
+          <button class="btn" id="heartNextBtn" type="button">继续</button>
+        </div>
+      </section>
+
+      <section class="page page-final-fireworks" id="finalFireworksPage" data-chapter="最后彩蛋">
+        <video id="fireworksVideo" class="fireworks-video" loop muted playsinline webkit-playsinline preload="none">
+          <source src="assets/reference/fireworks-reference.mp4" type="video/mp4" />
+        </video>
+        <div class="fireworks-dim"></div>
+        <div class="overlay">
+          <div class="inner">
+            <h2 class="glow-title">给小杨同学的流星雨</h2>
+            <div id="fireworksText" class="fireworks-text"></div>
+            <button id="fireworksNextBtn" class="btn" type="button">再点一次</button>
+            <div class="next-note">把这场夜晚收好</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-ending" id="endingPage" data-chapter="结尾">
+        <div class="ending-sky" id="endingSky" aria-hidden="true"></div>
+        <div class="ending-wrap">
+          <div class="cake">🎂</div>
+          <div class="birthday-en">happy birthday!</div>
+          <div class="birthday-cn" id="endingText"></div>
+          <img class="gift-avatar gift-avatar--ending" src="assets/images/avatar-square.jpg" alt="蜡笔小新和小白的生日头像" />
+        </div>
+      </section>
+    </div>
+
+    <div class="lyrics-overlay" id="lyricsOverlay" aria-hidden="true">
+      <span class="lyrics-kicker">BERRY / TINY7</span>
+      <span class="lyrics-text" id="lyricsText"></span>
+    </div>
+
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="照片放大查看">
+      <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭">×</button>
+      <img id="lightboxImg" alt="" />
+      <p id="lightboxCaption"></p>
+    </div>
+
+    <audio id="countdownMusic" preload="none" loop>
+      <source src="assets/music/countdown-background.m4a" type="audio/mp4" />
+    </audio>
+    <audio id="confessionMusic" preload="none" loop>
+      <source src="assets/music/main-background.m4a" type="audio/mp4" />
+    </audio>
+
+    <script src="src/data/story-config.js?v=20260905j"></script>
+    <script src="src/app.js?v=20260905n"></script>
+  </body>
+</html>

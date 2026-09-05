@@ -1,0 +1,11 @@
+# Local editor and operating-system files
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Superseded local media that the current website does not reference
+assets/photos/timeline/
+assets/reference/main-background-video.mp4
+assets/reference/星落倾心.mp4
+assets/references/
