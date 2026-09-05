@@ -5,9 +5,15 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 
 const embeddedMode = new URLSearchParams(window.location.search).get("embedded") === "1";
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isIOS = /iPad|iPhone|iPod/i.test(navigator.userAgent)
+  || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 const hardwareConcurrency = Number(navigator.hardwareConcurrency || 0);
-const compactRendering = reducedMotion || isSafari || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+const compactRendering = reducedMotion || isIOS || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+const usePostProcessing = !isIOS && !reducedMotion;
+const iosFrameInterval = 1000 / 30;
+
+if (isIOS) document.documentElement.classList.add("ios-performance");
 
 const dom = {
   experience: document.getElementById("experience"),
@@ -74,6 +80,7 @@ let flameLight;
 let halo;
 let flames = [];
 let animationClock;
+let lastRenderAt = 0;
 
 const reusable = {
   geometries: [],
@@ -94,6 +101,26 @@ function registerMaterial(material) {
 function registerTexture(texture) {
   reusable.textures.push(texture);
   return texture;
+}
+
+function createCrystalSurface(options) {
+  if (!isIOS) return new THREE.MeshPhysicalMaterial(options);
+
+  const {
+    transmission: _transmission,
+    thickness: _thickness,
+    ior: _ior,
+    clearcoat: _clearcoat,
+    clearcoatRoughness: _clearcoatRoughness,
+    ...fallback
+  } = options;
+
+  return new THREE.MeshStandardMaterial({
+    ...fallback,
+    metalness: Math.min(0.38, (fallback.metalness || 0) + 0.08),
+    roughness: Math.max(0.2, fallback.roughness || 0),
+    opacity: Math.min(0.9, fallback.opacity ?? 1),
+  });
 }
 
 function init() {
@@ -117,7 +144,7 @@ function init() {
     experienceState.muted = true;
   }
 
-  composer.render();
+  renderScene();
   animationClock = new THREE.Clock();
   if (!embeddedMode) renderer.setAnimationLoop(renderFrame);
 
@@ -155,6 +182,8 @@ function createScene() {
   camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 80);
   camera.position.set(0, 1.55, experienceState.cameraTargetZ);
   camera.lookAt(0, 0.2, 0);
+
+  if (!usePostProcessing) return;
 
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -208,7 +237,7 @@ function createEnvironment() {
   halo.scale.set(10, 10, 1);
   scene.add(halo);
 
-  const floorMaterial = registerMaterial(new THREE.MeshPhysicalMaterial({
+  const floorMaterial = registerMaterial(createCrystalSurface({
     color: 0x08182a,
     roughness: 0.18,
     metalness: 0.55,
@@ -218,7 +247,7 @@ function createEnvironment() {
     transparent: true,
     opacity: 0.88,
   }));
-  const floor = new THREE.Mesh(registerGeometry(new THREE.CircleGeometry(8.5, embeddedMode ? 64 : 96)), floorMaterial);
+  const floor = new THREE.Mesh(registerGeometry(new THREE.CircleGeometry(8.5, isIOS ? 48 : embeddedMode ? 64 : 96)), floorMaterial);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -1.55;
   floor.receiveShadow = true;
@@ -230,7 +259,7 @@ function createEnvironment() {
     opacity: 0.22,
     blending: THREE.AdditiveBlending,
   }));
-  const floorRing = new THREE.Mesh(registerGeometry(new THREE.TorusGeometry(4.6, 0.016, 8, embeddedMode ? 96 : 160)), ringMaterial);
+  const floorRing = new THREE.Mesh(registerGeometry(new THREE.TorusGeometry(4.6, 0.016, 8, isIOS ? 72 : embeddedMode ? 96 : 160)), ringMaterial);
   floorRing.rotation.x = Math.PI / 2;
   floorRing.position.y = -1.5;
   scene.add(floorRing);
@@ -244,7 +273,7 @@ function createEnvironment() {
 
 function createStarField(texture) {
   const count = embeddedMode
-    ? (window.innerWidth < 720 ? 140 : (compactRendering ? 220 : 300))
+    ? (window.innerWidth < 720 ? (isIOS ? 96 : 140) : (compactRendering ? 220 : 300))
     : (window.innerWidth < 720 ? 280 : (compactRendering ? 460 : 620));
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
@@ -281,9 +310,9 @@ function createStarField(texture) {
 
 function createCrystalField() {
   const group = new THREE.Group();
-  const count = embeddedMode ? (window.innerWidth < 720 ? 6 : 10) : (window.innerWidth < 720 ? 10 : 18);
+  const count = embeddedMode ? (window.innerWidth < 720 ? (isIOS ? 5 : 6) : 10) : (window.innerWidth < 720 ? 10 : 18);
   const geometry = registerGeometry(new THREE.OctahedronGeometry(0.32, 0));
-  const material = registerMaterial(new THREE.MeshPhysicalMaterial({
+  const material = registerMaterial(createCrystalSurface({
     color: 0x8aefff,
     emissive: 0x0b3d58,
     emissiveIntensity: 0.28,
@@ -323,7 +352,7 @@ function createCake() {
   cake.scale.setScalar(0.62);
   scene.add(cake);
 
-  const crystalMaterial = registerMaterial(new THREE.MeshPhysicalMaterial({
+  const crystalMaterial = registerMaterial(createCrystalSurface({
     color: 0x8befff,
     emissive: 0x062d43,
     emissiveIntensity: 0.16,
@@ -338,7 +367,7 @@ function createCake() {
     opacity: 0.92,
     side: THREE.DoubleSide,
   }));
-  const crystalWhite = registerMaterial(new THREE.MeshPhysicalMaterial({
+  const crystalWhite = registerMaterial(createCrystalSurface({
     color: 0xe8fdff,
     emissive: 0x173f55,
     emissiveIntensity: 0.18,
@@ -360,7 +389,7 @@ function createCake() {
     transparent: true,
     opacity: 0.42,
   }));
-  const plateMaterial = registerMaterial(new THREE.MeshPhysicalMaterial({
+  const plateMaterial = registerMaterial(createCrystalSurface({
     color: 0xb9f5ff,
     emissive: 0x0a3a55,
     emissiveIntensity: 0.22,
@@ -373,7 +402,7 @@ function createCake() {
     opacity: 0.88,
   }));
 
-  const plate = new THREE.Mesh(registerGeometry(new THREE.CylinderGeometry(2.8, 2.62, 0.16, embeddedMode ? 48 : 72)), plateMaterial);
+  const plate = new THREE.Mesh(registerGeometry(new THREE.CylinderGeometry(2.8, 2.62, 0.16, isIOS ? 36 : embeddedMode ? 48 : 72)), plateMaterial);
   plate.position.y = -0.47;
   plate.castShadow = true;
   plate.receiveShadow = true;
@@ -382,7 +411,7 @@ function createCake() {
   addTier({ radius: 2.18, height: 1, y: 0.08, shell: crystalMaterial, core: innerMaterial, trim: crystalWhite, fringeCount: 18 });
   addTier({ radius: 1.48, height: 0.74, y: 0.93, shell: crystalWhite, core: innerMaterial, trim: crystalMaterial, fringeCount: 14 });
 
-  const crownMaterial = registerMaterial(new THREE.MeshPhysicalMaterial({
+  const crownMaterial = registerMaterial(createCrystalSurface({
     color: 0xb59bff,
     emissive: 0x3a176d,
     emissiveIntensity: 0.55,
@@ -405,22 +434,22 @@ function createCake() {
 }
 
 function addTier({ radius, height, y, shell, core, trim, fringeCount }) {
-  const shellMesh = new THREE.Mesh(registerGeometry(new THREE.CylinderGeometry(radius, radius * 1.02, height, embeddedMode ? 44 : 64)), shell);
+  const shellMesh = new THREE.Mesh(registerGeometry(new THREE.CylinderGeometry(radius, radius * 1.02, height, isIOS ? 32 : embeddedMode ? 44 : 64)), shell);
   shellMesh.position.y = y;
   shellMesh.castShadow = true;
   shellMesh.receiveShadow = true;
   cake.add(shellMesh);
 
-  const coreMesh = new THREE.Mesh(registerGeometry(new THREE.CylinderGeometry(radius * 0.84, radius * 0.88, height * 0.76, embeddedMode ? 32 : 48)), core);
+  const coreMesh = new THREE.Mesh(registerGeometry(new THREE.CylinderGeometry(radius * 0.84, radius * 0.88, height * 0.76, isIOS ? 24 : embeddedMode ? 32 : 48)), core);
   coreMesh.position.y = y;
   cake.add(coreMesh);
 
-  const topTrim = new THREE.Mesh(registerGeometry(new THREE.TorusGeometry(radius * 0.94, 0.08, 12, embeddedMode ? 64 : 96)), trim);
+  const topTrim = new THREE.Mesh(registerGeometry(new THREE.TorusGeometry(radius * 0.94, 0.08, 12, isIOS ? 48 : embeddedMode ? 64 : 96)), trim);
   topTrim.rotation.x = Math.PI / 2;
   topTrim.position.y = y + height / 2 - 0.035;
   cake.add(topTrim);
 
-  const bottomTrim = new THREE.Mesh(registerGeometry(new THREE.TorusGeometry(radius * 0.98, 0.055, 10, embeddedMode ? 64 : 96)), trim);
+  const bottomTrim = new THREE.Mesh(registerGeometry(new THREE.TorusGeometry(radius * 0.98, 0.055, 10, isIOS ? 48 : embeddedMode ? 64 : 96)), trim);
   bottomTrim.rotation.x = Math.PI / 2;
   bottomTrim.position.y = y - height / 2 + 0.045;
   cake.add(bottomTrim);
@@ -628,6 +657,7 @@ function handleParentMessage(event) {
   const type = event.data && event.data.type;
 
   if (type === "birthday-countdown:start") {
+    lastRenderAt = 0;
     if (animationClock) animationClock.start();
     if (renderer) renderer.setAnimationLoop(renderFrame);
     startCountdown();
@@ -640,6 +670,11 @@ function handleParentMessage(event) {
     experienceState.mode = "idle";
     dom.countdownAudio.pause();
     if (renderer) renderer.setAnimationLoop(null);
+    return;
+  }
+
+  if (type === "birthday-countdown:dispose") {
+    disposeExperience();
   }
 }
 
@@ -717,7 +752,7 @@ function animateCountdownVisual(phase, progress) {
   if (phase.climax) {
     const climax = smoothstep(0.35, 1, progress);
     experienceState.cameraTargetZ = THREE.MathUtils.lerp(getBaseCameraZ() - 0.15, getClimaxCameraZ(), climax);
-    composer.bloomPass.strength = THREE.MathUtils.lerp(0.5, 0.74, climax);
+    if (composer?.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.5, 0.74, climax);
     keyLight.intensity = THREE.MathUtils.lerp(42, 68, climax);
     rimLight.intensity = THREE.MathUtils.lerp(30, 50, climax);
   }
@@ -726,7 +761,7 @@ function animateCountdownVisual(phase, progress) {
     const finalLight = smoothstep(0, 0.58, progress);
     experienceState.cakeReveal = smoothstep(0.06, 0.68, progress);
     experienceState.cameraTargetZ = THREE.MathUtils.lerp(getClimaxCameraZ(), getFinalCameraZ(), finalLight);
-    composer.bloomPass.strength = THREE.MathUtils.lerp(0.74, 0.86, finalLight);
+    if (composer?.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.74, 0.86, finalLight);
   }
 }
 
@@ -773,6 +808,8 @@ function toggleSound() {
 
 function renderFrame(now) {
   if (experienceState.disposed || document.hidden) return;
+  if (isIOS && lastRenderAt && now - lastRenderAt < iosFrameInterval) return;
+  lastRenderAt = now;
   const delta = Math.min(animationClock.getDelta(), 0.05);
   const elapsed = animationClock.elapsedTime;
   updateSequence(now);
@@ -805,12 +842,17 @@ function renderFrame(now) {
   });
 
   if (experienceState.mode !== "running") {
-    composer.bloomPass.strength += (0.5 - composer.bloomPass.strength) * Math.min(1, delta * 1.4);
+    if (composer?.bloomPass) composer.bloomPass.strength += (0.5 - composer.bloomPass.strength) * Math.min(1, delta * 1.4);
     keyLight.intensity += (42 - keyLight.intensity) * Math.min(1, delta * 1.4);
     rimLight.intensity += (30 - rimLight.intensity) * Math.min(1, delta * 1.4);
   }
 
-  composer.render();
+  renderScene();
+}
+
+function renderScene() {
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
 }
 
 function queueResize() {
@@ -834,7 +876,7 @@ function handleVisibilityChange() {
 }
 
 function onResize() {
-  if (!renderer || !camera || !composer) return;
+  if (!renderer || !camera) return;
   const width = Math.max(1, window.innerWidth);
   const height = Math.max(1, window.innerHeight);
   camera.aspect = width / height;
@@ -842,8 +884,8 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, getPixelRatioLimit(width)));
   renderer.setSize(width, height);
-  composer.setSize(width, height);
-  if (embeddedMode && composer.bloomPass) composer.bloomPass.setSize(Math.floor(width * 0.7), Math.floor(height * 0.7));
+  if (composer) composer.setSize(width, height);
+  if (embeddedMode && composer?.bloomPass) composer.bloomPass.setSize(Math.floor(width * 0.7), Math.floor(height * 0.7));
 
   if (experienceState.mode === "idle") {
     experienceState.cakeTargetX = width < 700 ? 0 : 1.7;
@@ -912,7 +954,10 @@ function disposeExperience() {
   reusable.geometries.forEach((geometry) => geometry.dispose());
   reusable.materials.forEach((material) => material.dispose());
   reusable.textures.forEach((texture) => texture.dispose());
-  if (renderer) renderer.dispose();
+  if (renderer) {
+    renderer.dispose();
+    if (typeof renderer.forceContextLoss === "function") renderer.forceContextLoss();
+  }
 }
 
 init();

@@ -1,13 +1,18 @@
 (function () {
   const config = window.BirthdayStory;
   const photoBase = "assets/photos/timeline-numbered/";
+  const mobilePhotoBase = "assets/photos/timeline-mobile/";
   const mainMusicVolume = 0.38;
   const galleryDuckVolume = 0.14;
-  const pageTransitionMs = 560;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const appleMobile = /iPad|iPhone|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const deviceMemory = Number(navigator.deviceMemory || 0);
   const hardwareConcurrency = Number(navigator.hardwareConcurrency || 0);
-  const lowPowerDevice = reducedMotion || (deviceMemory > 0 && deviceMemory <= 4) || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+  const lowPowerDevice = appleMobile || reducedMotion || (deviceMemory > 0 && deviceMemory <= 4) || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+  const pageTransitionMs = appleMobile ? 280 : 560;
+
+  if (appleMobile) document.documentElement.classList.add("ios-performance");
 
   const state = {
     page: "loginPage",
@@ -126,6 +131,7 @@
     if (previousPage && previousPage !== nextPage) {
       state.pageTransitionTimer = window.setTimeout(() => {
         previousPage.classList.remove("page-leaving");
+        releasePageResources(previousPage.id);
         state.pageTransitionTimer = null;
       }, reducedMotion ? 0 : pageTransitionMs + 40);
     }
@@ -181,6 +187,33 @@
     if (nextId !== "heartPage") clearHeartTimers();
     state.lyricsActive = false;
     state.lyricIndex = -1;
+  }
+
+  function releaseMediaElement(media) {
+    if (!media) return;
+    media.pause();
+    media.removeAttribute("src");
+    media.querySelectorAll("source").forEach((source) => source.removeAttribute("src"));
+    media.load();
+  }
+
+  function releasePageResources(pageId) {
+    if (pageId === "meteorPage") releaseMediaElement(dom.meteorVideo);
+
+    if (pageId === "countdownPage" && dom.countdownFrame?.dataset.loadState) {
+      postCountdownMessage("birthday-countdown:dispose");
+      window.setTimeout(() => {
+        dom.countdownFrame.src = "about:blank";
+        delete dom.countdownFrame.dataset.loadState;
+        state.countdownFrameReady = false;
+      }, 60);
+    }
+
+    if (pageId === "videosPage" && dom.videoGrid) {
+      dom.videoGrid.querySelectorAll("video").forEach(releaseMediaElement);
+    }
+
+    if (pageId === "finalFireworksPage") releaseMediaElement(dom.fireworksVideo);
   }
 
   async function unlockAudio() {
@@ -651,7 +684,8 @@
   }
 
   function photoPath(file) {
-    return assetUrl(`${photoBase}${file}`);
+    const base = appleMobile ? mobilePhotoBase : photoBase;
+    return assetUrl(`${base}${file}`);
   }
 
   function photoLabel(_file) {
@@ -711,7 +745,7 @@
         dom.photoWindow.classList.remove("is-projecting");
         state.photoTransitioning = false;
         state.photoFlipTimer = null;
-      }, 780);
+      }, appleMobile ? 580 : 780);
     };
 
     if (img.complete) mountPhoto();
@@ -911,22 +945,50 @@
 
     dom.blessingText.innerHTML = "";
     if (dom.blessingCursor) dom.blessingCursor.hidden = false;
-    const text = config.blessing.join("\n\n");
-    let index = 0;
+    const paragraphs = config.blessing.map((line, paragraphIndex) => {
+      const paragraph = document.createElement("p");
+      const classes = [];
+      if (line.length < 32) classes.push("short");
+      if (paragraphIndex >= config.blessing.length - 2) classes.push("signature");
+      paragraph.className = classes.join(" ");
+      const textNode = document.createTextNode("");
+      paragraph.appendChild(textNode);
+      dom.blessingText.appendChild(paragraph);
+      return { line, textNode };
+    });
+    let paragraphIndex = 0;
+    let characterIndex = 0;
+    let totalTyped = 0;
+
+    function keepLatestTextVisible() {
+      if (!dom.blessingPage) return;
+      window.requestAnimationFrame(() => {
+        dom.blessingPage.scrollTop = dom.blessingPage.scrollHeight;
+      });
+    }
 
     function tick() {
-      index += 1;
-      renderBlessingText(text.slice(0, index));
-      if (index % 10 === 0 && dom.blessingPage) {
-        dom.blessingPage.scrollTo({ top: dom.blessingPage.scrollHeight, behavior: "smooth" });
-      }
-      if (index < text.length) {
-        const char = text.charAt(index - 1);
-        const delay = /[。！？；]/.test(char) ? 190 : /[，、]/.test(char) ? 105 : 58;
-        state.blessingTimer = window.setTimeout(tick, delay);
-      } else {
+      const current = paragraphs[paragraphIndex];
+      if (!current) {
         completeBlessing();
+        return;
       }
+
+      const char = current.line.charAt(characterIndex);
+      current.textNode.appendData(char);
+      characterIndex += 1;
+      totalTyped += 1;
+
+      const paragraphDone = characterIndex >= current.line.length;
+      if (paragraphDone) {
+        paragraphIndex += 1;
+        characterIndex = 0;
+      }
+
+      if (totalTyped % 20 === 0 || paragraphDone || /[。！？；]/.test(char)) keepLatestTextVisible();
+
+      const delay = paragraphDone ? 240 : /[。！？；]/.test(char) ? 190 : /[，、]/.test(char) ? 105 : 58;
+      state.blessingTimer = window.setTimeout(tick, delay);
     }
 
     tick();
@@ -1115,8 +1177,8 @@
     layer.innerHTML = "";
     dom.heartNextBtn.classList.remove("visible");
 
-    const count = lowPowerDevice ? (window.innerWidth < 640 ? 52 : 72) : 100;
-    const revealStep = reducedMotion ? 8 : 26;
+    const count = appleMobile ? 40 : lowPowerDevice ? (window.innerWidth < 640 ? 52 : 72) : 100;
+    const revealStep = reducedMotion ? 8 : appleMobile ? 18 : 26;
 
     for (let i = 0; i < count; i += 1) {
       const t = (i / count) * Math.PI * 2;
@@ -1182,7 +1244,7 @@
   function startEndingSky() {
     if (!dom.endingSky) return;
     const colors = ["#ff4f9a", "#ffd54a", "#64e8ff", "#9cffb5", "#c59cff", "#ff8b66"];
-    const total = window.innerWidth < 640 ? 34 : 52;
+    const total = appleMobile ? 22 : window.innerWidth < 640 ? 34 : 52;
     dom.endingSky.innerHTML = "";
 
     for (let index = 0; index < total; index += 1) {

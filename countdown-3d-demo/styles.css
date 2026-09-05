@@ -145,6 +145,11 @@ button {
   transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
 }
 
+html.ios-performance .sound-toggle {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 .sound-toggle:hover {
   border-color: rgba(118, 239, 255, 0.64);
   background: rgba(9, 31, 55, 0.58);

@@ -1794,6 +1794,64 @@ button {
   }
 }
 
+html.ios-performance .page {
+  transition-duration: 280ms;
+}
+
+html.ios-performance body::after {
+  opacity: 0.12;
+  mix-blend-mode: normal;
+}
+
+html.ios-performance .center-wrap,
+html.ios-performance .ghost-btn,
+html.ios-performance .countdown-actions .ghost-btn,
+html.ios-performance .countdown-actions .btn,
+html.ios-performance .crystal-panel,
+html.ios-performance .round-nav,
+html.ios-performance .video-play-prompt,
+html.ios-performance .video-actions .btn {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html.ios-performance .dazz-card::before {
+  opacity: 0.38;
+  mix-blend-mode: normal;
+}
+
+html.ios-performance .page-gallery::before,
+html.ios-performance .page-gallery::after {
+  animation: none;
+}
+
+html.ios-performance .photo-window img {
+  filter: none;
+  will-change: transform;
+  transition-duration: 560ms, 420ms;
+}
+
+html.ios-performance .photo-window.is-projecting,
+html.ios-performance .photo-window.is-projecting::after {
+  animation-duration: 560ms;
+}
+
+html.ios-performance .heart-popup {
+  box-shadow: 0 7px 16px rgba(0, 0, 0, 0.2);
+  will-change: auto;
+  transition-duration: 700ms;
+}
+
+html.ios-performance .lyrics-overlay::before {
+  filter: none;
+}
+
+html.ios-performance .ending-fall,
+html.ios-performance .ending-fall--heart {
+  filter: drop-shadow(0 0 5px currentColor);
+  will-change: transform;
+}
+
 @media (max-width: 980px) {
   body {
     overflow: auto;
