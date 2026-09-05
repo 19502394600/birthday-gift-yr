@@ -119,7 +119,7 @@ function createCrystalSurface(options) {
     ...fallback,
     metalness: Math.min(0.38, (fallback.metalness || 0) + 0.08),
     roughness: Math.max(0.2, fallback.roughness || 0),
-    opacity: Math.min(0.9, fallback.opacity ?? 1),
+    opacity: Math.min(0.9, fallback.opacity === undefined ? 1 : fallback.opacity),
   });
 }
 
@@ -752,7 +752,7 @@ function animateCountdownVisual(phase, progress) {
   if (phase.climax) {
     const climax = smoothstep(0.35, 1, progress);
     experienceState.cameraTargetZ = THREE.MathUtils.lerp(getBaseCameraZ() - 0.15, getClimaxCameraZ(), climax);
-    if (composer?.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.5, 0.74, climax);
+    if (composer && composer.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.5, 0.74, climax);
     keyLight.intensity = THREE.MathUtils.lerp(42, 68, climax);
     rimLight.intensity = THREE.MathUtils.lerp(30, 50, climax);
   }
@@ -761,7 +761,7 @@ function animateCountdownVisual(phase, progress) {
     const finalLight = smoothstep(0, 0.58, progress);
     experienceState.cakeReveal = smoothstep(0.06, 0.68, progress);
     experienceState.cameraTargetZ = THREE.MathUtils.lerp(getClimaxCameraZ(), getFinalCameraZ(), finalLight);
-    if (composer?.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.74, 0.86, finalLight);
+    if (composer && composer.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.74, 0.86, finalLight);
   }
 }
 
@@ -842,7 +842,7 @@ function renderFrame(now) {
   });
 
   if (experienceState.mode !== "running") {
-    if (composer?.bloomPass) composer.bloomPass.strength += (0.5 - composer.bloomPass.strength) * Math.min(1, delta * 1.4);
+    if (composer && composer.bloomPass) composer.bloomPass.strength += (0.5 - composer.bloomPass.strength) * Math.min(1, delta * 1.4);
     keyLight.intensity += (42 - keyLight.intensity) * Math.min(1, delta * 1.4);
     rimLight.intensity += (30 - rimLight.intensity) * Math.min(1, delta * 1.4);
   }
@@ -885,7 +885,7 @@ function onResize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, getPixelRatioLimit(width)));
   renderer.setSize(width, height);
   if (composer) composer.setSize(width, height);
-  if (embeddedMode && composer?.bloomPass) composer.bloomPass.setSize(Math.floor(width * 0.7), Math.floor(height * 0.7));
+  if (embeddedMode && composer && composer.bloomPass) composer.bloomPass.setSize(Math.floor(width * 0.7), Math.floor(height * 0.7));
 
   if (experienceState.mode === "idle") {
     experienceState.cakeTargetX = width < 700 ? 0 : 1.7;
@@ -922,11 +922,11 @@ function getNumberSpriteSize(isFinal) {
 }
 
 function easeOutCubic(value) {
-  return 1 - (1 - value) ** 3;
+  return 1 - Math.pow(1 - value, 3);
 }
 
 function easeInCubic(value) {
-  return value ** 3;
+  return Math.pow(value, 3);
 }
 
 function smoothstep(edge0, edge1, value) {

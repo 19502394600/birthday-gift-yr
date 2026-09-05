@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#080d18" />
     <title>小杨同学 | 生日快乐</title>
     <meta name="description" content="私人生日沉浸式纪念网站" />
-    <link rel="stylesheet" href="styles.css?v=20260905q" />
+    <link rel="stylesheet" href="styles.css?v=20260905r" />
   </head>
   <body>
     <div id="app">
@@ -23,7 +23,7 @@
 
       <section class="page page-meteor" id="meteorPage" data-chapter="流星雨">
         <video id="meteorVideo" class="meteor-video" loop playsinline webkit-playsinline preload="metadata">
-          <source src="assets/reference/meteor-reference.mp4" type="video/mp4" />
+          <source data-src="assets/reference/meteor-reference.mp4" type="video/mp4" />
         </video>
         <div class="meteor-retouch"></div>
         <div class="meteor-dim"></div>
@@ -40,10 +40,28 @@
         <iframe
           class="countdown-frame"
           id="countdownFrame"
-          data-src="countdown-3d-demo/?embedded=1&amp;v=20260905h"
+          data-src="countdown-3d-demo/index.html?embedded=1&amp;v=20260905r"
           title="3D 水晶生日倒计时和蛋糕"
           allow="autoplay; fullscreen"
         ></iframe>
+        <div class="countdown-fallback" id="countdownFallback" hidden aria-hidden="true">
+          <canvas id="fallbackCountdownCanvas" aria-hidden="true"></canvas>
+          <div class="fallback-countdown-core">
+            <p id="fallbackReadyText" class="fallback-ready">你准备好了吗？</p>
+            <div id="fallbackNumber" class="fallback-number" aria-live="assertive"></div>
+            <div id="fallbackCake" class="fallback-cake" aria-hidden="true">
+              <span class="fallback-candle"></span>
+              <span class="fallback-candle"></span>
+              <span class="fallback-candle"></span>
+              <span class="fallback-candle"></span>
+              <span class="fallback-candle"></span>
+              <span class="fallback-tier fallback-tier-top"></span>
+              <span class="fallback-tier fallback-tier-bottom"></span>
+              <span class="fallback-plate"></span>
+            </div>
+            <p id="fallbackFinalText" class="fallback-final">生日快乐，小杨同学</p>
+          </div>
+        </div>
         <div class="countdown-actions">
           <button class="ghost-btn" id="skipCountdownBtn" type="button">跳过</button>
           <button class="btn delayed-btn" id="countdownNextBtn" type="button" disabled>继续</button>
@@ -131,7 +149,7 @@
 
       <section class="page page-final-fireworks" id="finalFireworksPage" data-chapter="最后彩蛋">
         <video id="fireworksVideo" class="fireworks-video" loop muted playsinline webkit-playsinline preload="none">
-          <source src="assets/reference/fireworks-reference.mp4" type="video/mp4" />
+          <source data-src="assets/reference/fireworks-reference.mp4" type="video/mp4" />
         </video>
         <div class="fireworks-dim"></div>
         <div class="overlay">
@@ -173,7 +191,7 @@
       <source src="assets/music/main-background.m4a" type="audio/mp4" />
     </audio>
 
-    <script src="src/data/story-config.js?v=20260905j"></script>
-    <script src="src/app.js?v=20260905q"></script>
+    <script src="src/data/story-config.js?v=20260905r"></script>
+    <script src="src/app.js?v=20260905r"></script>
   </body>
 </html>

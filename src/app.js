@@ -10,6 +10,7 @@
   const deviceMemory = Number(navigator.deviceMemory || 0);
   const hardwareConcurrency = Number(navigator.hardwareConcurrency || 0);
   const lowPowerDevice = appleMobile || reducedMotion || (deviceMemory > 0 && deviceMemory <= 4) || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+  const useCountdownFallback = appleMobile;
   const pageTransitionMs = appleMobile ? 280 : 560;
 
   if (appleMobile) document.documentElement.classList.add("ios-performance");
@@ -39,6 +40,10 @@
     photoFlipTimer: null,
     pageTransitionTimer: null,
     countdownWarmTimer: null,
+    countdownFallbackTimer: null,
+    countdownFallbackRaf: 0,
+    countdownFallbackStars: [],
+    countdownFallbackPhase: 0,
     videosWarmTimer: null,
     videosRendered: false,
     fireworksWarmed: false,
@@ -59,6 +64,12 @@
     meteorSub: document.getElementById("meteorSub"),
     meteorNextBtn: document.getElementById("meteorNextBtn"),
     countdownFrame: document.getElementById("countdownFrame"),
+    countdownFallback: document.getElementById("countdownFallback"),
+    fallbackCountdownCanvas: document.getElementById("fallbackCountdownCanvas"),
+    fallbackReadyText: document.getElementById("fallbackReadyText"),
+    fallbackNumber: document.getElementById("fallbackNumber"),
+    fallbackCake: document.getElementById("fallbackCake"),
+    fallbackFinalText: document.getElementById("fallbackFinalText"),
     countdownNextBtn: document.getElementById("countdownNextBtn"),
     skipCountdownBtn: document.getElementById("skipCountdownBtn"),
     photoWindow: document.getElementById("photoWindow"),
@@ -100,6 +111,17 @@
 
   function assetUrl(path) {
     return encodeURI(path);
+  }
+
+  function ensureMediaElementSource(media) {
+    if (!media) return;
+    if (media.currentSrc || media.getAttribute("src")) return;
+
+    media.querySelectorAll("source").forEach((source) => {
+      const sourcePath = source.getAttribute("data-src");
+      if (sourcePath && !source.getAttribute("src")) source.setAttribute("src", assetUrl(sourcePath));
+    });
+    media.load();
   }
 
   function showPage(id) {
@@ -175,6 +197,7 @@
     if (nextId !== "countdownPage") {
       state.countdownStarted = false;
       postCountdownMessage("birthday-countdown:stop");
+      stopFallbackCountdown();
     }
     if (nextId !== "finalFireworksPage" && dom.fireworksVideo) dom.fireworksVideo.pause();
     if (nextId !== "videosPage") pauseBlessingVideos();
@@ -200,7 +223,7 @@
   function releasePageResources(pageId) {
     if (pageId === "meteorPage") releaseMediaElement(dom.meteorVideo);
 
-    if (pageId === "countdownPage" && dom.countdownFrame?.dataset.loadState) {
+    if (pageId === "countdownPage" && dom.countdownFrame && dom.countdownFrame.dataset.loadState) {
       postCountdownMessage("birthday-countdown:dispose");
       window.setTimeout(() => {
         dom.countdownFrame.src = "about:blank";
@@ -216,28 +239,42 @@
     if (pageId === "finalFireworksPage") releaseMediaElement(dom.fireworksVideo);
   }
 
-  async function unlockAudio() {
-    if (state.audioUnlocked) return;
+  function unlockAudio() {
+    if (state.audioUnlocked) return Promise.resolve();
     state.audioUnlocked = true;
-    await Promise.all([primeAudio(dom.countdownMusic), primeAudio(dom.confessionMusic)]);
+    return Promise.all([primeAudio(dom.countdownMusic), primeAudio(dom.confessionMusic)]);
   }
 
-  async function primeAudio(audio) {
-    if (!audio) return;
+  function primeAudio(audio) {
+    if (!audio) return Promise.resolve();
     const wasMuted = audio.muted;
     const wasVolume = audio.volume;
+    const restore = () => {
+      audio.muted = wasMuted;
+      audio.volume = wasVolume || 1;
+    };
+    const finishPrime = () => {
+      audio.pause();
+      audio.currentTime = 0;
+      restore();
+    };
+
     try {
       audio.muted = true;
       audio.volume = 0;
-      await audio.play();
-      audio.pause();
-      audio.currentTime = 0;
+      const playResult = audio.play();
+      if (playResult && typeof playResult.then === "function") {
+        return playResult.then(finishPrime, () => {
+          audio.pause();
+          restore();
+        });
+      }
+      finishPrime();
     } catch (_error) {
       audio.pause();
-    } finally {
-      audio.muted = wasMuted;
-      audio.volume = wasVolume || 1;
+      restore();
     }
+    return Promise.resolve();
   }
 
   function applyStageMusic(pageId) {
@@ -360,7 +397,8 @@
     }, state.meteorRevealMs);
 
     if (dom.meteorVideo) {
-      dom.meteorVideo.muted = false;
+      ensureMediaElementSource(dom.meteorVideo);
+      dom.meteorVideo.muted = appleMobile;
       dom.meteorVideo.volume = 1;
       dom.meteorVideo.currentTime = 0;
       dom.meteorVideo.play().catch(() => {});
@@ -370,6 +408,7 @@
   }
 
   function scheduleCountdownWarm() {
+    if (useCountdownFallback) return;
     if (!dom.countdownFrame || dom.countdownFrame.dataset.loadState || state.countdownWarmTimer) return;
     state.countdownWarmTimer = window.setTimeout(() => {
       state.countdownWarmTimer = null;
@@ -395,8 +434,162 @@
     dom.countdownNextBtn.classList.remove("visible");
     dom.countdownNextBtn.disabled = true;
     state.countdownStarted = false;
+    if (useCountdownFallback) {
+      if (dom.countdownFrame) {
+        dom.countdownFrame.hidden = true;
+        dom.countdownFrame.src = "about:blank";
+      }
+      startFallbackCountdown();
+      return;
+    }
+    if (dom.countdownFrame) dom.countdownFrame.hidden = false;
     ensureCountdownLoaded();
     requestCountdownStart();
+  }
+
+  function resizeFallbackCountdownCanvas() {
+    if (!dom.fallbackCountdownCanvas) return;
+    const canvas = dom.fallbackCountdownCanvas;
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width || window.innerWidth));
+    const height = Math.max(1, Math.floor(rect.height || window.innerHeight));
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  function makeFallbackStars() {
+    const total = reducedMotion ? 46 : 86;
+    state.countdownFallbackStars = Array.from({ length: total }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      z: 0.4 + Math.random() * 1.6,
+      phase: Math.random() * Math.PI * 2,
+      drift: (Math.random() - 0.5) * 0.0005,
+    }));
+  }
+
+  function drawFallbackCountdown(now) {
+    if (state.page !== "countdownPage" || !useCountdownFallback || !dom.fallbackCountdownCanvas) return;
+
+    const canvas = dom.fallbackCountdownCanvas;
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const glow = ctx.createRadialGradient(width * 0.5, height * 0.42, 8, width * 0.5, height * 0.42, width * 0.78);
+    glow.addColorStop(0, "rgba(255, 139, 198, 0.25)");
+    glow.addColorStop(0.42, "rgba(121, 225, 255, 0.13)");
+    glow.addColorStop(1, "rgba(4, 6, 18, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    state.countdownFallbackStars.forEach((star, index) => {
+      star.y += 0.00028 * star.z;
+      star.x += star.drift + Math.sin(now * 0.0007 + star.phase) * 0.00008;
+      if (star.y > 1.08) {
+        star.y = -0.08;
+        star.x = Math.random();
+      }
+      if (star.x < -0.04) star.x = 1.04;
+      if (star.x > 1.04) star.x = -0.04;
+
+      const alpha = 0.22 + Math.sin(now * 0.002 + star.phase) * 0.12 + (index % 7 === 0 ? 0.18 : 0);
+      const radius = 1.1 + star.z * 1.6;
+      ctx.fillStyle = index % 5 === 0
+        ? `rgba(255, 205, 236, ${alpha})`
+        : `rgba(151, 241, 255, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(star.x * width, star.y * height, radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+    state.countdownFallbackRaf = window.requestAnimationFrame(drawFallbackCountdown);
+  }
+
+  function setFallbackPhase(phase) {
+    if (!dom.countdownFallback || state.page !== "countdownPage") return;
+
+    state.countdownFallbackPhase += 1;
+    const phaseToken = state.countdownFallbackPhase;
+    const ready = phase === "ready";
+    const final = phase === "final";
+    const numeric = !ready && !final;
+
+    if (dom.fallbackReadyText) dom.fallbackReadyText.classList.toggle("visible", ready);
+    if (dom.fallbackNumber) {
+      dom.fallbackNumber.textContent = numeric ? phase : "";
+      dom.fallbackNumber.classList.remove("pop");
+      void dom.fallbackNumber.offsetWidth;
+      dom.fallbackNumber.classList.toggle("visible", numeric);
+      if (numeric) dom.fallbackNumber.classList.add("pop");
+    }
+    if (dom.fallbackCake) dom.fallbackCake.classList.toggle("visible", final);
+    if (dom.fallbackFinalText) dom.fallbackFinalText.classList.toggle("visible", final);
+
+    if (ready) {
+      state.countdownFallbackTimer = window.setTimeout(() => {
+        if (phaseToken === state.countdownFallbackPhase) setFallbackPhase("5");
+      }, 1400);
+      return;
+    }
+
+    if (numeric) {
+      const next = String(Number(phase) - 1);
+      state.countdownFallbackTimer = window.setTimeout(() => {
+        if (phaseToken !== state.countdownFallbackPhase) return;
+        if (Number(phase) > 1) setFallbackPhase(next);
+        else setFallbackPhase("final");
+      }, phase === "1" ? 1450 : 1180);
+      return;
+    }
+
+    state.countdownFallbackTimer = window.setTimeout(() => {
+      if (phaseToken !== state.countdownFallbackPhase) return;
+      dom.skipCountdownBtn.hidden = true;
+      dom.countdownNextBtn.classList.add("visible");
+      dom.countdownNextBtn.disabled = false;
+    }, 1500);
+  }
+
+  function startFallbackCountdown() {
+    stopFallbackCountdown();
+    if (!dom.countdownFallback) return;
+    dom.countdownFallback.hidden = false;
+    dom.countdownFallback.setAttribute("aria-hidden", "false");
+    dom.countdownFallback.classList.add("active");
+    if (dom.fallbackReadyText) dom.fallbackReadyText.classList.remove("visible");
+    if (dom.fallbackNumber) {
+      dom.fallbackNumber.textContent = "";
+      dom.fallbackNumber.classList.remove("visible", "pop");
+    }
+    if (dom.fallbackCake) dom.fallbackCake.classList.remove("visible");
+    if (dom.fallbackFinalText) dom.fallbackFinalText.classList.remove("visible");
+
+    resizeFallbackCountdownCanvas();
+    makeFallbackStars();
+    state.countdownFallbackRaf = window.requestAnimationFrame(drawFallbackCountdown);
+    setFallbackPhase("ready");
+  }
+
+  function stopFallbackCountdown() {
+    window.clearTimeout(state.countdownFallbackTimer);
+    state.countdownFallbackTimer = null;
+    window.cancelAnimationFrame(state.countdownFallbackRaf);
+    state.countdownFallbackRaf = 0;
+    state.countdownFallbackPhase += 1;
+    if (dom.countdownFallback) {
+      dom.countdownFallback.classList.remove("active");
+      dom.countdownFallback.hidden = true;
+      dom.countdownFallback.setAttribute("aria-hidden", "true");
+    }
+    if (dom.fallbackCountdownCanvas) {
+      const ctx = dom.fallbackCountdownCanvas.getContext("2d");
+      ctx.clearRect(0, 0, dom.fallbackCountdownCanvas.width, dom.fallbackCountdownCanvas.height);
+    }
   }
 
   function requestCountdownStart() {
@@ -822,6 +1015,7 @@
   }
 
   function scheduleVideosWarm() {
+    if (appleMobile) return;
     if (state.videosRendered || state.videosWarmTimer) return;
     state.videosWarmTimer = window.setTimeout(() => {
       state.videosWarmTimer = null;
@@ -1028,7 +1222,7 @@
 
     function step(now) {
       const progress = Math.min(1, (now - startTime) / duration);
-      const eased = 1 - (1 - progress) ** 3;
+      const eased = 1 - Math.pow(1 - progress, 3);
       audio.volume = startVolume + (target - startVolume) * eased;
       if (progress < 1) state.musicVolumeRaf = window.requestAnimationFrame(step);
       else state.musicVolumeRaf = 0;
@@ -1069,7 +1263,7 @@
       for (let i = 0; i < data.length; i += 1) {
         const progress = i / data.length;
         const flutter = 0.72 + Math.sin(progress * Math.PI * 22) * 0.18;
-        data[i] = (Math.random() * 2 - 1) * (1 - progress) ** 1.7 * flutter * 0.68;
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - progress, 1.7) * flutter * 0.68;
       }
 
       const noise = ctx.createBufferSource();
@@ -1182,7 +1376,7 @@
 
     for (let i = 0; i < count; i += 1) {
       const t = (i / count) * Math.PI * 2;
-      const x = 16 * Math.sin(t) ** 3;
+      const x = 16 * Math.pow(Math.sin(t), 3);
       const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
       const card = document.createElement("div");
       card.className = "heart-popup";
@@ -1214,13 +1408,16 @@
 
   function warmFireworksVideo() {
     if (!dom.fireworksVideo || state.fireworksWarmed) return;
+    if (appleMobile) return;
     state.fireworksWarmed = true;
+    ensureMediaElementSource(dom.fireworksVideo);
     dom.fireworksVideo.preload = "metadata";
     dom.fireworksVideo.load();
   }
 
   function startFinalFireworks() {
     if (dom.fireworksVideo) {
+      ensureMediaElementSource(dom.fireworksVideo);
       dom.fireworksVideo.preload = "auto";
       dom.fireworksVideo.currentTime = 0;
       dom.fireworksVideo.muted = true;
@@ -1368,6 +1565,7 @@
   }
 
   function init() {
+    if (!appleMobile) ensureMediaElementSource(dom.meteorVideo);
     prepareMeteorText();
     setBlessingSpacing();
     dom.photoCounter.textContent = `01 / ${config.photos.length}`;
