@@ -150,6 +150,16 @@ html.ios-performance .sound-toggle {
   backdrop-filter: none;
 }
 
+html.apple-device .scene-grain {
+  opacity: 0.1;
+  mix-blend-mode: normal;
+}
+
+html.apple-desktop .sound-toggle {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
 .sound-toggle:hover {
   border-color: rgba(118, 239, 255, 0.64);
   background: rgba(9, 31, 55, 0.58);

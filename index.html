@@ -6,13 +6,35 @@
     <meta name="theme-color" content="#080d18" />
     <title>小杨同学 | 生日快乐</title>
     <meta name="description" content="私人生日沉浸式纪念网站" />
-    <link rel="stylesheet" href="styles.css?v=20260905r" />
+    <link rel="preconnect" href="https://19502394600.github.io" crossorigin />
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var ua = navigator.userAgent || "";
+        var platform = navigator.platform || "";
+        var maxTouchPoints = navigator.maxTouchPoints || 0;
+        var appleMobile = /iPad|iPhone|iPod/i.test(ua) || (platform === "MacIntel" && maxTouchPoints > 1);
+        var appleDesktop = /Macintosh|Mac OS X/i.test(ua) && !appleMobile;
+
+        if (appleMobile) root.classList.add("ios-performance", "apple-device");
+        else if (appleDesktop) root.classList.add("apple-device", "apple-desktop");
+
+        function setAppHeight() {
+          root.style.setProperty("--app-height", window.innerHeight + "px");
+        }
+
+        setAppHeight();
+        window.addEventListener("resize", setAppHeight, { passive: true });
+        window.addEventListener("orientationchange", setAppHeight, { passive: true });
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260905t" />
   </head>
   <body>
     <div id="app">
       <section class="page page-login active" id="loginPage" data-chapter="密码">
         <div class="center-wrap login-card">
-          <img class="gift-avatar" src="assets/images/avatar-square.jpg" alt="蜡笔小新和小白的生日头像" />
+          <img class="gift-avatar" src="assets/images/avatar-square.jpg" alt="蜡笔小新和小白的生日头像" decoding="async" fetchpriority="high" />
           <h1 class="title">输入密码，开启惊喜</h1>
           <p class="subtitle">提示：8 位数字</p>
           <input id="passwordInput" class="password" type="password" placeholder="请输入密码" maxlength="16" />
@@ -22,7 +44,7 @@
       </section>
 
       <section class="page page-meteor" id="meteorPage" data-chapter="流星雨">
-        <video id="meteorVideo" class="meteor-video" loop playsinline webkit-playsinline preload="metadata">
+        <video id="meteorVideo" class="meteor-video" loop muted playsinline webkit-playsinline preload="metadata">
           <source data-src="assets/reference/meteor-reference.mp4" type="video/mp4" />
         </video>
         <div class="meteor-retouch"></div>
@@ -40,7 +62,7 @@
         <iframe
           class="countdown-frame"
           id="countdownFrame"
-          data-src="countdown-3d-demo/index.html?embedded=1&amp;v=20260905r"
+          data-src="countdown-3d-demo/index.html?embedded=1&amp;v=20260905t"
           title="3D 水晶生日倒计时和蛋糕"
           allow="autoplay; fullscreen"
         ></iframe>
@@ -184,14 +206,14 @@
       <p id="lightboxCaption"></p>
     </div>
 
-    <audio id="countdownMusic" preload="none" loop>
+    <audio id="countdownMusic" preload="metadata" loop>
       <source src="assets/music/countdown-background.m4a" type="audio/mp4" />
     </audio>
-    <audio id="confessionMusic" preload="none" loop>
+    <audio id="confessionMusic" preload="metadata" loop>
       <source src="assets/music/main-background.m4a" type="audio/mp4" />
     </audio>
 
-    <script src="src/data/story-config.js?v=20260905r"></script>
-    <script src="src/app.js?v=20260905r"></script>
+    <script src="src/data/story-config.js?v=20260905t"></script>
+    <script src="src/app.js?v=20260905t"></script>
   </body>
 </html>

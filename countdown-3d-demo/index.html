@@ -5,7 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#020611" />
     <title>3D 水晶生日倒计时</title>
-    <link rel="stylesheet" href="styles.css?v=20260905g" />
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var ua = navigator.userAgent || "";
+        var platform = navigator.platform || "";
+        var maxTouchPoints = navigator.maxTouchPoints || 0;
+        var appleMobile = /iPad|iPhone|iPod/i.test(ua) || (platform === "MacIntel" && maxTouchPoints > 1);
+        var appleDesktop = /Macintosh|Mac OS X/i.test(ua) && !appleMobile;
+
+        if (appleMobile) root.classList.add("ios-performance", "apple-device");
+        else if (appleDesktop) root.classList.add("apple-device", "apple-desktop");
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20260905h" />
     <script type="importmap">
       {
         "imports": {
@@ -67,6 +80,6 @@
       </div>
     </main>
 
-    <script type="module" src="app.js?v=20260905g"></script>
+    <script type="module" src="app.js?v=20260905h"></script>
   </body>
 </html>

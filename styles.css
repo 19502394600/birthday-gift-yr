@@ -62,7 +62,7 @@ button {
 .page {
   width: 100%;
   height: 100%;
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
 }
 
 @supports (-webkit-touch-callout: none) {
@@ -74,7 +74,7 @@ button {
   #app,
   .page {
     min-height: 100vh;
-    min-height: -webkit-fill-available;
+    min-height: var(--app-height, -webkit-fill-available);
   }
 }
 
@@ -509,6 +509,10 @@ button {
   object-fit: cover;
   object-position: center center;
   background: linear-gradient(180deg, var(--blue-a) 0%, var(--blue-b) 55%, var(--blue-c) 100%);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .meteor-retouch {
@@ -2018,6 +2022,15 @@ button {
   }
 }
 
+@keyframes apple-night-drift {
+  from {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.02);
+  }
+  to {
+    transform: translate3d(1.5%, 1%, 0) scale(1.04);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .photo-window img,
@@ -2034,6 +2047,62 @@ button {
   .photo-window.is-projecting::after {
     animation-duration: 240ms;
   }
+}
+
+html.apple-device body::after {
+  opacity: 0.12;
+  mix-blend-mode: normal;
+}
+
+html.apple-device .meteor-video,
+html.apple-device .fireworks-video {
+  will-change: transform;
+}
+
+html.apple-device .meteor-retouch {
+  opacity: 0.62;
+  background: linear-gradient(180deg, rgba(10, 34, 78, 0.03) 0%, rgba(17, 48, 99, 0.14) 48%, rgba(22, 61, 118, 0.45) 100%);
+}
+
+html.apple-device .meteor-dim,
+html.apple-device .fireworks-dim {
+  background: linear-gradient(180deg, rgba(3, 14, 38, 0.2) 0%, rgba(8, 21, 49, 0.14) 56%, rgba(12, 30, 68, 0.1) 100%);
+}
+
+html.apple-device .dazz-card::before {
+  opacity: 0.72;
+  mix-blend-mode: normal;
+}
+
+html.apple-device .photo-window img {
+  filter: contrast(1.02) saturate(0.98) sepia(0.04);
+}
+
+html.apple-device .lyrics-overlay::before {
+  filter: none;
+}
+
+html.apple-desktop .center-wrap,
+html.apple-desktop .ghost-btn,
+html.apple-desktop .countdown-actions .ghost-btn,
+html.apple-desktop .countdown-actions .btn,
+html.apple-desktop .crystal-panel,
+html.apple-desktop .round-nav,
+html.apple-desktop .video-play-prompt,
+html.apple-desktop .video-actions .btn {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+html.apple-desktop .page-gallery::before {
+  opacity: 0.23;
+  animation-duration: 3.8s;
+}
+
+html.apple-desktop .page-gallery::after {
+  opacity: 0.1;
+  mix-blend-mode: normal;
+  animation-duration: 2.4s;
 }
 
 html.ios-performance .page {
@@ -2055,6 +2124,45 @@ html.ios-performance .video-play-prompt,
 html.ios-performance .video-actions .btn {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+html.ios-performance .meteor-video,
+html.ios-performance .fireworks-video {
+  display: none;
+}
+
+html.ios-performance .page-meteor::before,
+html.ios-performance .page-final-fireworks::before {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 184, 223, 0.24), transparent 26%),
+    radial-gradient(circle at 78% 28%, rgba(133, 225, 255, 0.2), transparent 30%),
+    radial-gradient(circle at 52% 74%, rgba(151, 124, 255, 0.2), transparent 34%),
+    linear-gradient(180deg, #07142e 0%, #111236 48%, #070814 100%);
+  animation: apple-night-drift 18s ease-in-out infinite alternate;
+}
+
+html.ios-performance .page-meteor::after,
+html.ios-performance .page-final-fireworks::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 24%, rgba(255, 255, 255, 0.44) 0 1px, transparent 2px),
+    radial-gradient(circle at 32% 68%, rgba(255, 217, 238, 0.34) 0 1px, transparent 2px),
+    radial-gradient(circle at 64% 38%, rgba(145, 239, 255, 0.36) 0 1px, transparent 2px),
+    radial-gradient(circle at 86% 72%, rgba(255, 255, 255, 0.36) 0 1px, transparent 2px);
+  opacity: 0.76;
+}
+
+html.ios-performance .meteor-retouch {
+  display: none;
 }
 
 html.ios-performance .dazz-card::before {
@@ -2101,7 +2209,7 @@ html.ios-performance .ending-fall--heart {
 
   .page {
     position: relative;
-    min-height: 100vh;
+    min-height: var(--app-height, 100vh);
   }
 
   .page.page-leaving {

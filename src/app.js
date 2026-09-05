@@ -5,15 +5,20 @@
   const mainMusicVolume = 0.38;
   const galleryDuckVolume = 0.14;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const appleMobile = /iPad|iPhone|iPod/i.test(navigator.userAgent)
-    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints = navigator.maxTouchPoints || 0;
+  const appleMobile = /iPad|iPhone|iPod/i.test(ua) || (platform === "MacIntel" && maxTouchPoints > 1);
+  const appleDesktop = /Macintosh|Mac OS X/i.test(ua) && !appleMobile;
+  const appleDevice = appleMobile || appleDesktop;
   const deviceMemory = Number(navigator.deviceMemory || 0);
   const hardwareConcurrency = Number(navigator.hardwareConcurrency || 0);
-  const lowPowerDevice = appleMobile || reducedMotion || (deviceMemory > 0 && deviceMemory <= 4) || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+  const lowPowerDevice = appleMobile || reducedMotion || (!appleDesktop && ((deviceMemory > 0 && deviceMemory <= 4) || (hardwareConcurrency > 0 && hardwareConcurrency <= 4)));
   const useCountdownFallback = appleMobile;
-  const pageTransitionMs = appleMobile ? 280 : 560;
+  const pageTransitionMs = appleMobile ? 240 : appleDevice ? 420 : 360;
 
-  if (appleMobile) document.documentElement.classList.add("ios-performance");
+  if (appleMobile) document.documentElement.classList.add("ios-performance", "apple-device");
+  else if (appleDesktop) document.documentElement.classList.add("apple-device", "apple-desktop");
 
   const state = {
     page: "loginPage",
@@ -32,6 +37,8 @@
     lyricsActive: false,
     lyricIndex: -1,
     audioUnlocked: false,
+    audioBlocked: false,
+    lastRequestedMusicPage: "loginPage",
     filmAudioCtx: null,
     projectorNodes: null,
     musicVolumeRaf: 0,
@@ -239,49 +246,41 @@
     if (pageId === "finalFireworksPage") releaseMediaElement(dom.fireworksVideo);
   }
 
-  function unlockAudio() {
-    if (state.audioUnlocked) return Promise.resolve();
-    state.audioUnlocked = true;
-    return Promise.all([primeAudio(dom.countdownMusic), primeAudio(dom.confessionMusic)]);
+  function prepareAudioElement(audio) {
+    if (!audio) return;
+    audio.preload = "auto";
+    if (audio.readyState === 0 && audio.networkState === 0) {
+      try {
+        audio.load();
+      } catch (_error) {}
+    }
   }
 
-  function primeAudio(audio) {
-    if (!audio) return Promise.resolve();
-    const wasMuted = audio.muted;
-    const wasVolume = audio.volume;
-    const restore = () => {
-      audio.muted = wasMuted;
-      audio.volume = wasVolume || 1;
-    };
-    const finishPrime = () => {
-      audio.pause();
-      audio.currentTime = 0;
-      restore();
-    };
-
-    try {
-      audio.muted = true;
-      audio.volume = 0;
-      const playResult = audio.play();
-      if (playResult && typeof playResult.then === "function") {
-        return playResult.then(finishPrime, () => {
-          audio.pause();
-          restore();
-        });
-      }
-      finishPrime();
-    } catch (_error) {
-      audio.pause();
-      restore();
+  function resumeFilmAudioContext() {
+    if (state.filmAudioCtx && state.filmAudioCtx.state === "suspended") {
+      state.filmAudioCtx.resume().catch(() => {});
     }
+  }
+
+  function unlockAudio() {
+    if (state.audioUnlocked) {
+      resumeFilmAudioContext();
+      return Promise.resolve();
+    }
+    state.audioUnlocked = true;
+    prepareAudioElement(dom.countdownMusic);
+    prepareAudioElement(dom.confessionMusic);
+    resumeFilmAudioContext();
     return Promise.resolve();
   }
 
   function applyStageMusic(pageId) {
+    state.lastRequestedMusicPage = pageId;
     if (!state.audioUnlocked) return;
+    const countdownMusicPages = new Set(["meteorPage", "countdownPage"]);
     const mainMusicPages = new Set(["blessingPage", "heartPage", "galleryPage", "videosPage", "messagePage", "finalFireworksPage", "endingPage"]);
 
-    if (pageId === "countdownPage") {
+    if (countdownMusicPages.has(pageId)) {
       pauseAudio(dom.confessionMusic);
       playAudio(dom.countdownMusic, "倒计时音乐", "把倒计时背景.m4a 放到 assets/music/countdown-background.m4a。");
       return;
@@ -353,8 +352,21 @@
     window.clearTimeout(state.musicDuckTimer);
     state.musicVolumeRaf = 0;
     state.musicDuckTimer = null;
-    audio.volume = label === "倒计时音乐" ? 0.46 : mainMusicVolume;
-    audio.play().catch(() => {});
+    prepareAudioElement(audio);
+    audio.muted = false;
+    audio.volume = label === "倒计时音乐" ? 0.42 : mainMusicVolume;
+    try {
+      const playResult = audio.play();
+      if (playResult && typeof playResult.catch === "function") {
+        playResult.then(() => {
+          state.audioBlocked = false;
+        }).catch(() => {
+          state.audioBlocked = true;
+        });
+      }
+    } catch (_error) {
+      state.audioBlocked = true;
+    }
   }
 
   function pauseAudio(audio) {
@@ -379,6 +391,17 @@
     state.meteorRevealMs = titleDoneMs + 3200;
   }
 
+  function prepareDecorativeVideo(video, preload = "metadata") {
+    if (!video) return;
+    video.muted = true;
+    video.defaultMuted = true;
+    video.volume = 0;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.preload = preload;
+  }
+
   function startMeteorPage() {
     dom.meteorNextBtn.classList.remove("visible");
     dom.meteorNextBtn.disabled = true;
@@ -396,10 +419,9 @@
       dom.meteorNextBtn.disabled = false;
     }, state.meteorRevealMs);
 
-    if (dom.meteorVideo) {
+    if (dom.meteorVideo && !appleMobile) {
+      prepareDecorativeVideo(dom.meteorVideo, "metadata");
       ensureMediaElementSource(dom.meteorVideo);
-      dom.meteorVideo.muted = appleMobile;
-      dom.meteorVideo.volume = 1;
       dom.meteorVideo.currentTime = 0;
       dom.meteorVideo.play().catch(() => {});
     }
@@ -1056,7 +1078,10 @@
       if (player) {
         player.dataset.completed = "false";
         if (prompt) {
-          prompt.addEventListener("click", () => player.play().catch(() => {}));
+          prompt.addEventListener("click", () => {
+            unlockAudio();
+            player.play().catch(() => {});
+          });
         }
         player.addEventListener("play", () => {
           if (prompt) {
@@ -1416,11 +1441,11 @@
   }
 
   function startFinalFireworks() {
-    if (dom.fireworksVideo) {
+    if (dom.fireworksVideo && !appleMobile) {
+      prepareDecorativeVideo(dom.fireworksVideo, "auto");
       ensureMediaElementSource(dom.fireworksVideo);
       dom.fireworksVideo.preload = "auto";
       dom.fireworksVideo.currentTime = 0;
-      dom.fireworksVideo.muted = true;
       dom.fireworksVideo.play().catch(() => {});
     }
     window.clearInterval(state.fireworksTimer);
@@ -1477,6 +1502,11 @@
     showPage("loginPage");
   }
 
+  function goToPage(id) {
+    unlockAudio();
+    showPage(id);
+  }
+
   function escapeHtml(value) {
     return String(value)
       .replace(/&/g, "&amp;")
@@ -1493,8 +1523,9 @@
       return;
     }
 
-    if (state.page === "meteorPage" && dom.meteorVideo) dom.meteorVideo.play().catch(() => {});
-    if (state.page === "finalFireworksPage" && dom.fireworksVideo) dom.fireworksVideo.play().catch(() => {});
+    if (state.page === "meteorPage" && dom.meteorVideo && !appleMobile) dom.meteorVideo.play().catch(() => {});
+    if (state.page === "finalFireworksPage" && dom.fireworksVideo && !appleMobile) dom.fireworksVideo.play().catch(() => {});
+    if (state.audioUnlocked) applyStageMusic(state.page);
     if (state.page === "galleryPage") startProjectorSound();
   }
 
@@ -1522,9 +1553,9 @@
       if (event.key === "Enter") dom.enterBtn.click();
     });
 
-    dom.meteorNextBtn.addEventListener("click", () => showPage("countdownPage"));
-    dom.skipCountdownBtn.addEventListener("click", () => showPage("blessingPage"));
-    dom.countdownNextBtn.addEventListener("click", () => showPage("blessingPage"));
+    dom.meteorNextBtn.addEventListener("click", () => goToPage("countdownPage"));
+    dom.skipCountdownBtn.addEventListener("click", () => goToPage("blessingPage"));
+    dom.countdownNextBtn.addEventListener("click", () => goToPage("blessingPage"));
     dom.countdownFrame.addEventListener("load", () => {
       if (!dom.countdownFrame.dataset.loadState) return;
       dom.countdownFrame.dataset.loadState = "loaded";
@@ -1538,6 +1569,7 @@
     dom.zoomPhotoBtn.addEventListener("click", openLightbox);
     dom.photoWindow.addEventListener("click", openLightbox);
     dom.finishGalleryBtn.addEventListener("click", () => {
+      unlockAudio();
       playFilmFlipSound();
       showPage("videosPage");
     });
@@ -1546,11 +1578,11 @@
       if (event.target === dom.lightbox) closeLightbox();
     });
     dom.skipMessageBtn.addEventListener("click", renderBoardMessages);
-    dom.eggBtn.addEventListener("click", () => showPage("finalFireworksPage"));
-    dom.videosNextBtn.addEventListener("click", () => showPage("messagePage"));
-    dom.heartStartBtn.addEventListener("click", () => showPage("heartPage"));
-    dom.heartNextBtn.addEventListener("click", () => showPage("galleryPage"));
-    dom.fireworksNextBtn.addEventListener("click", () => showPage("endingPage"));
+    dom.eggBtn.addEventListener("click", () => goToPage("finalFireworksPage"));
+    dom.videosNextBtn.addEventListener("click", () => goToPage("messagePage"));
+    dom.heartStartBtn.addEventListener("click", () => goToPage("heartPage"));
+    dom.heartNextBtn.addEventListener("click", () => goToPage("galleryPage"));
+    dom.fireworksNextBtn.addEventListener("click", () => goToPage("endingPage"));
 
     window.addEventListener("keydown", (event) => {
       if (state.page === "galleryPage") {
@@ -1562,9 +1594,16 @@
 
     window.addEventListener("resize", handleResize, { passive: true });
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("pointerdown", () => {
+      if (!state.audioBlocked) return;
+      unlockAudio();
+      applyStageMusic(state.lastRequestedMusicPage);
+    }, { passive: true });
   }
 
   function init() {
+    prepareDecorativeVideo(dom.meteorVideo, appleMobile ? "none" : "metadata");
+    prepareDecorativeVideo(dom.fireworksVideo, appleMobile ? "none" : "metadata");
     if (!appleMobile) ensureMediaElementSource(dom.meteorVideo);
     prepareMeteorText();
     setBlessingSpacing();

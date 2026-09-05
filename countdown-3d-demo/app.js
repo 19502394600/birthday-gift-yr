@@ -5,15 +5,20 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 
 const embeddedMode = new URLSearchParams(window.location.search).get("embedded") === "1";
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const isIOS = /iPad|iPhone|iPod/i.test(navigator.userAgent)
-  || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+const ua = navigator.userAgent || "";
+const platform = navigator.platform || "";
+const maxTouchPoints = navigator.maxTouchPoints || 0;
+const isIOS = /iPad|iPhone|iPod/i.test(ua) || (platform === "MacIntel" && maxTouchPoints > 1);
+const isAppleDesktop = /Macintosh|Mac OS X/i.test(ua) && !isIOS;
+const isSafari = /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua);
+const appleDesktopRendering = isAppleDesktop && isSafari;
 const hardwareConcurrency = Number(navigator.hardwareConcurrency || 0);
-const compactRendering = reducedMotion || isIOS || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+const compactRendering = reducedMotion || isIOS || (!appleDesktopRendering && hardwareConcurrency > 0 && hardwareConcurrency <= 4);
 const usePostProcessing = !isIOS && !reducedMotion;
 const iosFrameInterval = 1000 / 30;
 
-if (isIOS) document.documentElement.classList.add("ios-performance");
+if (isIOS) document.documentElement.classList.add("ios-performance", "apple-device");
+else if (isAppleDesktop) document.documentElement.classList.add("apple-device", "apple-desktop");
 
 const dom = {
   experience: document.getElementById("experience"),
@@ -161,7 +166,7 @@ function createRenderer() {
   renderer = new THREE.WebGLRenderer({
     antialias: !embeddedMode && !compactRendering,
     alpha: false,
-    powerPreference: embeddedMode || isSafari ? "default" : "high-performance",
+    powerPreference: isIOS ? "default" : "high-performance",
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, getPixelRatioLimit(window.innerWidth)));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -187,11 +192,11 @@ function createScene() {
 
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloomScale = embeddedMode ? (compactRendering ? 0.62 : 0.7) : (compactRendering ? 0.82 : 1);
-  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth * bloomScale, window.innerHeight * bloomScale), 0.5, 0.48, 0.52);
+  const bloomScale = getBloomResolutionScale(window.innerWidth);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth * bloomScale, window.innerHeight * bloomScale), getBloomBaseStrength(), 0.44, 0.54);
   bloom.threshold = 0.52;
-  bloom.strength = 0.5;
-  bloom.radius = 0.48;
+  bloom.strength = getBloomBaseStrength();
+  bloom.radius = appleDesktopRendering ? 0.42 : 0.48;
   composer.addPass(bloom);
   composer.bloomPass = bloom;
 }
@@ -273,7 +278,7 @@ function createEnvironment() {
 
 function createStarField(texture) {
   const count = embeddedMode
-    ? (window.innerWidth < 720 ? (isIOS ? 96 : 140) : (compactRendering ? 220 : 300))
+    ? (window.innerWidth < 720 ? (isIOS ? 96 : 140) : (appleDesktopRendering ? 220 : compactRendering ? 220 : 300))
     : (window.innerWidth < 720 ? 280 : (compactRendering ? 460 : 620));
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
@@ -752,7 +757,7 @@ function animateCountdownVisual(phase, progress) {
   if (phase.climax) {
     const climax = smoothstep(0.35, 1, progress);
     experienceState.cameraTargetZ = THREE.MathUtils.lerp(getBaseCameraZ() - 0.15, getClimaxCameraZ(), climax);
-    if (composer && composer.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.5, 0.74, climax);
+    if (composer && composer.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(getBloomBaseStrength(), getBloomClimaxStrength(), climax);
     keyLight.intensity = THREE.MathUtils.lerp(42, 68, climax);
     rimLight.intensity = THREE.MathUtils.lerp(30, 50, climax);
   }
@@ -761,7 +766,7 @@ function animateCountdownVisual(phase, progress) {
     const finalLight = smoothstep(0, 0.58, progress);
     experienceState.cakeReveal = smoothstep(0.06, 0.68, progress);
     experienceState.cameraTargetZ = THREE.MathUtils.lerp(getClimaxCameraZ(), getFinalCameraZ(), finalLight);
-    if (composer && composer.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(0.74, 0.86, finalLight);
+    if (composer && composer.bloomPass) composer.bloomPass.strength = THREE.MathUtils.lerp(getBloomClimaxStrength(), getBloomFinalStrength(), finalLight);
   }
 }
 
@@ -842,7 +847,7 @@ function renderFrame(now) {
   });
 
   if (experienceState.mode !== "running") {
-    if (composer && composer.bloomPass) composer.bloomPass.strength += (0.5 - composer.bloomPass.strength) * Math.min(1, delta * 1.4);
+    if (composer && composer.bloomPass) composer.bloomPass.strength += (getBloomBaseStrength() - composer.bloomPass.strength) * Math.min(1, delta * 1.4);
     keyLight.intensity += (42 - keyLight.intensity) * Math.min(1, delta * 1.4);
     rimLight.intensity += (30 - rimLight.intensity) * Math.min(1, delta * 1.4);
   }
@@ -885,7 +890,10 @@ function onResize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, getPixelRatioLimit(width)));
   renderer.setSize(width, height);
   if (composer) composer.setSize(width, height);
-  if (embeddedMode && composer && composer.bloomPass) composer.bloomPass.setSize(Math.floor(width * 0.7), Math.floor(height * 0.7));
+  if (composer && composer.bloomPass) {
+    const bloomScale = getBloomResolutionScale(width);
+    composer.bloomPass.setSize(Math.floor(width * bloomScale), Math.floor(height * bloomScale));
+  }
 
   if (experienceState.mode === "idle") {
     experienceState.cakeTargetX = width < 700 ? 0 : 1.7;
@@ -897,9 +905,28 @@ function onResize() {
 }
 
 function getPixelRatioLimit(width) {
+  if (appleDesktopRendering) return embeddedMode ? 1.05 : 1.35;
   if (embeddedMode) return width < 700 || compactRendering ? 1 : 1.15;
   if (compactRendering) return width < 700 ? 1.25 : 1.5;
   return width < 700 ? 1.45 : 1.8;
+}
+
+function getBloomResolutionScale(width) {
+  if (appleDesktopRendering) return embeddedMode ? 0.52 : 0.72;
+  if (embeddedMode) return width < 700 || compactRendering ? 0.58 : 0.66;
+  return compactRendering ? 0.76 : 0.94;
+}
+
+function getBloomBaseStrength() {
+  return appleDesktopRendering ? 0.42 : 0.5;
+}
+
+function getBloomClimaxStrength() {
+  return appleDesktopRendering ? 0.58 : 0.74;
+}
+
+function getBloomFinalStrength() {
+  return appleDesktopRendering ? 0.66 : 0.86;
 }
 
 function getBaseCameraZ() {
