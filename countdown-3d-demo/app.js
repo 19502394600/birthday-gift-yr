@@ -203,10 +203,10 @@ function createScene() {
 }
 
 function createLights() {
-  const hemisphere = new THREE.HemisphereLight(0xc8ddff, 0x14071d, 1.15);
+  const hemisphere = new THREE.HemisphereLight(0xa6f6ff, 0x14071d, 1.15);
   scene.add(hemisphere);
 
-  keyLight = new THREE.SpotLight(0x82b7ff, 42, 24, Math.PI * 0.22, 0.48, 1.2);
+  keyLight = new THREE.SpotLight(0x78efff, 42, 24, Math.PI * 0.22, 0.48, 1.2);
   keyLight.position.set(4.5, 7, 5.5);
   keyLight.target.position.set(0, 0.2, 0);
   keyLight.castShadow = !embeddedMode;
@@ -232,9 +232,9 @@ function createEnvironment() {
 
   const haloMaterial = registerMaterial(new THREE.SpriteMaterial({
     map: glowTexture,
-    color: 0x7b8cff,
+    color: 0x4ddfff,
     transparent: true,
-    opacity: 0.14,
+    opacity: 0.17,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   }));
@@ -260,7 +260,7 @@ function createEnvironment() {
   scene.add(floor);
 
   const ringMaterial = registerMaterial(new THREE.MeshBasicMaterial({
-    color: 0x8ea8ff,
+    color: 0x7fefff,
     transparent: true,
     opacity: 0.22,
     blending: THREE.AdditiveBlending,
@@ -283,7 +283,7 @@ function createStarField(texture) {
     : (window.innerWidth < 720 ? 280 : (compactRendering ? 460 : 620));
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
-  const cyan = new THREE.Color(0xb2d7ff);
+  const cyan = new THREE.Color(0x9cf7ff);
   const violet = new THREE.Color(0xb7a7ff);
 
   for (let index = 0; index < count; index += 1) {
@@ -292,7 +292,7 @@ function createStarField(texture) {
     let y = THREE.MathUtils.randFloat(-3.2, 6.2);
     let z = THREE.MathUtils.randFloat(-7, 3.5);
 
-    if (Math.abs(x) < 2.55 && y > -1.35 && y < 2.85 && z > -2.9) {
+    if (Math.abs(x) < 3.05 && y > -1.6 && y < 3.25) {
       const side = Math.random() < 0.5 ? -1 : 1;
       x = side * THREE.MathUtils.randFloat(2.9, 8.8);
       y = THREE.MathUtils.randFloat(-2.8, 5.7);
@@ -317,8 +317,9 @@ function createStarField(texture) {
     vertexColors: true,
     transparent: true,
     opacity: 0.54,
-    alphaTest: 0.02,
+    alphaTest: 0.08,
     depthWrite: false,
+    depthTest: false,
     blending: THREE.AdditiveBlending,
     sizeAttenuation: true,
   }));
@@ -330,8 +331,8 @@ function createCrystalField() {
   const count = embeddedMode ? (window.innerWidth < 720 ? (isIOS ? 5 : 6) : 10) : (window.innerWidth < 720 ? 10 : 18);
   const geometry = registerGeometry(new THREE.OctahedronGeometry(0.32, 0));
   const material = registerMaterial(createCrystalSurface({
-    color: 0x9fc7ff,
-    emissive: 0x0b2858,
+    color: 0x8aefff,
+    emissive: 0x0b3d58,
     emissiveIntensity: 0.28,
     metalness: 0.1,
     roughness: 0.08,
@@ -370,8 +371,8 @@ function createCake() {
   scene.add(cake);
 
   const crystalMaterial = registerMaterial(createCrystalSurface({
-    color: 0x9fc9ff,
-    emissive: 0x08214d,
+    color: 0x8befff,
+    emissive: 0x062d43,
     emissiveIntensity: 0.16,
     metalness: 0.08,
     roughness: 0.07,
@@ -386,7 +387,7 @@ function createCake() {
   }));
   const crystalWhite = registerMaterial(createCrystalSurface({
     color: 0xe8fdff,
-    emissive: 0x20376b,
+    emissive: 0x173f55,
     emissiveIntensity: 0.18,
     metalness: 0.04,
     roughness: 0.05,
@@ -407,8 +408,8 @@ function createCake() {
     opacity: 0.42,
   }));
   const plateMaterial = registerMaterial(createCrystalSurface({
-    color: 0xd3e9ff,
-    emissive: 0x102b63,
+    color: 0xb9f5ff,
+    emissive: 0x0a3a55,
     emissiveIntensity: 0.22,
     metalness: 0.22,
     roughness: 0.1,
@@ -521,7 +522,7 @@ function createPlaque() {
   context.textBaseline = "middle";
   context.font = '800 64px Georgia, "Times New Roman", serif';
   context.fillStyle = "rgba(229, 253, 255, 0.96)";
-  context.shadowColor = "rgba(132, 170, 255, 0.86)";
+  context.shadowColor = "rgba(91, 236, 255, 0.9)";
   context.shadowBlur = 26;
   context.fillText("FOR YOU", canvas.width / 2, canvas.height / 2);
 
@@ -568,7 +569,7 @@ function drawCountdownText(text, isFinal = false) {
     ? '800 176px "Microsoft YaHei", "PingFang SC", sans-serif'
     : '700 382px Georgia, "Times New Roman", serif';
 
-  context.shadowColor = "rgba(126, 170, 255, 0.78)";
+  context.shadowColor = "rgba(70, 230, 255, 0.84)";
   context.shadowBlur = isFinal ? 50 : 70;
   context.strokeStyle = "rgba(196, 249, 255, 0.86)";
   context.lineWidth = isFinal ? 5 : 8;
@@ -576,8 +577,8 @@ function drawCountdownText(text, isFinal = false) {
 
   const fill = context.createLinearGradient(0, 90, 0, 430);
   fill.addColorStop(0, "#ffffff");
-  fill.addColorStop(0.4, "#dce9ff");
-  fill.addColorStop(0.74, "#9dbdff");
+  fill.addColorStop(0.4, "#baf9ff");
+  fill.addColorStop(0.74, "#8dddf7");
   fill.addColorStop(1, "#bca9ff");
   context.fillStyle = fill;
   context.fillText(text, width / 2, height / 2 + 8);
@@ -596,13 +597,17 @@ function createGlowTexture() {
   const context = canvas.getContext("2d");
   const gradient = context.createRadialGradient(48, 48, 0, 48, 48, 48);
   gradient.addColorStop(0, "rgba(255,255,255,1)");
-  gradient.addColorStop(0.18, "rgba(220,233,255,0.9)");
-  gradient.addColorStop(0.5, "rgba(126,170,255,0.26)");
-  gradient.addColorStop(1, "rgba(126,170,255,0)");
+  gradient.addColorStop(0.18, "rgba(204,250,255,0.9)");
+  gradient.addColorStop(0.5, "rgba(101,232,255,0.28)");
+  gradient.addColorStop(1, "rgba(101,232,255,0.001)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.premultiplyAlpha = true;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   return texture;
 }
 

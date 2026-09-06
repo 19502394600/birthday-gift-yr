@@ -31,6 +31,8 @@
     countdownController: null,
     countdownFrameReady: false,
     countdownStarted: false,
+    countdownReadyAt: 0,
+    countdownStartTimer: null,
     blessingDone: false,
     blessingTimer: null,
     fireworksTimer: null,
@@ -190,6 +192,8 @@
   function stopTransientWork(nextId) {
     window.clearTimeout(state.countdownTimer);
     state.countdownTimer = null;
+    window.clearTimeout(state.countdownStartTimer);
+    state.countdownStartTimer = null;
     window.cancelAnimationFrame(state.countdownRaf);
     state.countdownRaf = 0;
     state.countdownController = null;
@@ -489,8 +493,9 @@
   }
 
   function scheduleCountdownWarm() {
-    if (useCountdownFallback || appleDevice) return;
+    if (useCountdownFallback) return;
     if (!dom.countdownFrame || dom.countdownFrame.dataset.loadState || state.countdownWarmTimer) return;
+    const delay = appleDesktop ? Math.max(2800, state.meteorRevealMs - 1600) : 900;
     state.countdownWarmTimer = window.setTimeout(() => {
       state.countdownWarmTimer = null;
       if (typeof window.requestIdleCallback === "function") {
@@ -507,6 +512,7 @@
     if (!src) return;
     dom.countdownFrame.dataset.loadState = "loading";
     state.countdownFrameReady = false;
+    state.countdownReadyAt = 0;
     dom.countdownFrame.src = src;
   }
 
@@ -676,7 +682,15 @@
   function requestCountdownStart() {
     if (!state.countdownFrameReady || state.countdownStarted) return;
     state.countdownStarted = true;
-    postCountdownMessage("birthday-countdown:start");
+    window.clearTimeout(state.countdownStartTimer);
+    const settleMs = appleDesktop ? 850 : 0;
+    const elapsedSinceReady = state.countdownReadyAt ? performance.now() - state.countdownReadyAt : settleMs;
+    const delay = Math.max(0, settleMs - elapsedSinceReady);
+    state.countdownStartTimer = window.setTimeout(() => {
+      state.countdownStartTimer = null;
+      if (state.page !== "countdownPage" || !state.countdownFrameReady) return;
+      postCountdownMessage("birthday-countdown:start");
+    }, delay);
   }
 
   function postCountdownMessage(type) {
@@ -691,6 +705,7 @@
 
     if (type === "birthday-countdown:ready") {
       state.countdownFrameReady = true;
+      state.countdownReadyAt = performance.now();
       if (state.page === "countdownPage") requestCountdownStart();
       return;
     }
