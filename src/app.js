@@ -41,6 +41,8 @@
     audioUnlocked: false,
     audioBlocked: false,
     lastRequestedMusicPage: "loginPage",
+    countdownMusicPrimed: false,
+    mainMusicPrimed: false,
     filmAudioCtx: null,
     projectorNodes: null,
     musicVolumeRaf: 0,
@@ -161,11 +163,14 @@
     applyLyrics(id);
 
     if (previousPage && previousPage !== nextPage) {
+      const releaseDelay = previousPage.id === "countdownPage" && id === "blessingPage"
+        ? 120
+        : reducedMotion ? 0 : pageTransitionMs + 40;
       state.pageTransitionTimer = window.setTimeout(() => {
         previousPage.classList.remove("page-leaving");
         releasePageResources(previousPage.id);
         state.pageTransitionTimer = null;
-      }, reducedMotion ? 0 : pageTransitionMs + 40);
+      }, releaseDelay);
     }
 
     if (id === "meteorPage") startMeteorPage();
@@ -261,6 +266,18 @@
     }
   }
 
+  function primeMainMusic() {
+    if (!dom.confessionMusic || state.mainMusicPrimed) return;
+    state.mainMusicPrimed = true;
+    prepareAudioElement(dom.confessionMusic);
+  }
+
+  function primeCountdownMusic() {
+    if (!dom.countdownMusic || state.countdownMusicPrimed) return;
+    state.countdownMusicPrimed = true;
+    prepareAudioElement(dom.countdownMusic);
+  }
+
   function resumeFilmAudioContext() {
     if (state.filmAudioCtx && state.filmAudioCtx.state === "suspended") {
       state.filmAudioCtx.resume().catch(() => {});
@@ -286,14 +303,20 @@
     if (countdownMusicPages.has(pageId)) {
       pauseMeteorOriginal();
       pauseAudio(dom.confessionMusic);
+      primeCountdownMusic();
       playAudio(dom.countdownMusic, "倒计时音乐", "把倒计时背景.m4a 放到 assets/music/countdown-background.m4a。");
+      primeMainMusic();
       return;
     }
 
     pauseAudio(dom.countdownMusic);
     if (mainMusicPages.has(pageId)) {
       pauseMeteorOriginal();
-      playAudio(dom.confessionMusic, "主背景音乐", "把主背景.m4a 放到 assets/music/main-background.m4a。");
+      primeMainMusic();
+      playAudio(dom.confessionMusic, "主背景音乐", "把主背景.m4a 放到 assets/music/main-background.m4a。", undefined, {
+        fadeIn: pageId === "blessingPage",
+        fadeMs: appleDevice ? 960 : 720,
+      });
       return;
     }
 
@@ -352,7 +375,7 @@
     dom.lyricsOverlay.setAttribute("aria-hidden", "false");
   }
 
-  function playAudio(audio, label, missingHint, targetVolume) {
+  function playAudio(audio, label, missingHint, targetVolume, options = {}) {
     if (!audio) return;
     window.cancelAnimationFrame(state.musicVolumeRaf);
     window.clearTimeout(state.musicDuckTimer);
@@ -360,15 +383,27 @@
     state.musicDuckTimer = null;
     prepareAudioElement(audio);
     audio.muted = false;
-    audio.volume = Number.isFinite(targetVolume) ? targetVolume : label === "倒计时音乐" ? 0.42 : mainMusicVolume;
+    const desiredVolume = Number.isFinite(targetVolume) ? targetVolume : label === "倒计时音乐" ? 0.42 : mainMusicVolume;
+    const shouldFadeIn = Boolean(options.fadeIn && audio.paused);
+    let fadeStarted = false;
+    const beginFade = () => {
+      if (!shouldFadeIn || fadeStarted) return;
+      fadeStarted = true;
+      fadeAudioVolume(audio, desiredVolume, options.fadeMs || 720);
+    };
+    audio.volume = shouldFadeIn ? 0.001 : desiredVolume;
     try {
       const playResult = audio.play();
+      if (shouldFadeIn) audio.addEventListener("playing", beginFade, { once: true });
       if (playResult && typeof playResult.catch === "function") {
         playResult.then(() => {
           state.audioBlocked = false;
+          beginFade();
         }).catch(() => {
           state.audioBlocked = true;
         });
+      } else {
+        window.setTimeout(beginFade, 80);
       }
     } catch (_error) {
       state.audioBlocked = true;
@@ -486,6 +521,7 @@
 
     if (state.audioUnlocked) playMeteorOriginal();
 
+    primeCountdownMusic();
     scheduleCountdownWarm();
   }
 
@@ -1651,6 +1687,8 @@
 
   function goToPage(id) {
     unlockAudio();
+    if (id === "countdownPage") primeCountdownMusic();
+    if (id === "blessingPage") primeMainMusic();
     showPage(id);
   }
 
