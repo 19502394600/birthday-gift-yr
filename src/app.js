@@ -273,9 +273,6 @@
       return Promise.resolve();
     }
     state.audioUnlocked = true;
-    prepareAudioElement(dom.countdownMusic);
-    prepareAudioElement(dom.meteorAudio);
-    prepareAudioElement(dom.confessionMusic);
     resumeFilmAudioContext();
     return Promise.resolve();
   }

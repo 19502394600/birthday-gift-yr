@@ -683,13 +683,15 @@ function startCountdown() {
   dom.countdownHud.classList.add("is-visible");
   dom.countdownHud.setAttribute("aria-hidden", "false");
 
-  dom.countdownAudio.currentTime = 0;
-  dom.countdownAudio.volume = 0.62;
-  dom.countdownAudio.muted = embeddedMode || experienceState.muted;
   if (!embeddedMode) {
+    dom.countdownAudio.currentTime = 0;
+    dom.countdownAudio.volume = 0.62;
+    dom.countdownAudio.muted = experienceState.muted;
     dom.countdownAudio.play().catch(() => {
       dom.soundLabel.textContent = "BGM READY";
     });
+  } else {
+    dom.countdownAudio.pause();
   }
 
   enterSequencePhase();
