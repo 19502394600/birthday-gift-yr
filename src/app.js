@@ -416,9 +416,17 @@
     pauseAudio(dom.countdownMusic);
     pauseAudio(dom.confessionMusic);
 
-    if (appleMobile) {
-      if (dom.meteorVideo) dom.meteorVideo.pause();
+    if (appleDevice) {
+      if (dom.meteorVideo && !appleMobile) {
+        prepareDecorativeVideo(dom.meteorVideo, "metadata");
+        ensureMediaElementSource(dom.meteorVideo);
+        dom.meteorVideo.currentTime = 0;
+        dom.meteorVideo.play().catch(() => {});
+      } else if (dom.meteorVideo) {
+        dom.meteorVideo.pause();
+      }
       if (dom.meteorAudio) {
+        prepareAudioElement(dom.meteorAudio);
         dom.meteorAudio.currentTime = 0;
         dom.meteorAudio.loop = false;
         playAudio(dom.meteorAudio, "流星原声", "", 0.9);
@@ -481,7 +489,7 @@
   }
 
   function scheduleCountdownWarm() {
-    if (useCountdownFallback) return;
+    if (useCountdownFallback || appleDevice) return;
     if (!dom.countdownFrame || dom.countdownFrame.dataset.loadState || state.countdownWarmTimer) return;
     state.countdownWarmTimer = window.setTimeout(() => {
       state.countdownWarmTimer = null;

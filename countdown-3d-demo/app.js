@@ -141,6 +141,7 @@ function init() {
   createEnvironment();
   createCake();
   createCountdownSprite();
+  warmGpuPrograms();
   bindEvents();
   onResize();
 
@@ -202,10 +203,10 @@ function createScene() {
 }
 
 function createLights() {
-  const hemisphere = new THREE.HemisphereLight(0xa6f6ff, 0x14071d, 1.15);
+  const hemisphere = new THREE.HemisphereLight(0xc8ddff, 0x14071d, 1.15);
   scene.add(hemisphere);
 
-  keyLight = new THREE.SpotLight(0x78efff, 42, 24, Math.PI * 0.22, 0.48, 1.2);
+  keyLight = new THREE.SpotLight(0x82b7ff, 42, 24, Math.PI * 0.22, 0.48, 1.2);
   keyLight.position.set(4.5, 7, 5.5);
   keyLight.target.position.set(0, 0.2, 0);
   keyLight.castShadow = !embeddedMode;
@@ -221,8 +222,8 @@ function createLights() {
   roseLight.position.set(0.8, -0.2, 4.2);
   scene.add(roseLight);
 
-  flameLight = new THREE.PointLight(0xa5f6ff, 11, 7, 1.5);
-  flameLight.position.set(0, 1.1, 1.3);
+  flameLight = new THREE.PointLight(0xffeefa, 7.4, 7.4, 1.55);
+  flameLight.position.set(0.42, 1.76, 1.05);
   scene.add(flameLight);
 }
 
@@ -231,9 +232,9 @@ function createEnvironment() {
 
   const haloMaterial = registerMaterial(new THREE.SpriteMaterial({
     map: glowTexture,
-    color: 0x4ddfff,
+    color: 0x7b8cff,
     transparent: true,
-    opacity: 0.17,
+    opacity: 0.14,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   }));
@@ -259,7 +260,7 @@ function createEnvironment() {
   scene.add(floor);
 
   const ringMaterial = registerMaterial(new THREE.MeshBasicMaterial({
-    color: 0x7fefff,
+    color: 0x8ea8ff,
     transparent: true,
     opacity: 0.22,
     blending: THREE.AdditiveBlending,
@@ -282,14 +283,25 @@ function createStarField(texture) {
     : (window.innerWidth < 720 ? 280 : (compactRendering ? 460 : 620));
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
-  const cyan = new THREE.Color(0x9cf7ff);
+  const cyan = new THREE.Color(0xb2d7ff);
   const violet = new THREE.Color(0xb7a7ff);
 
   for (let index = 0; index < count; index += 1) {
     const offset = index * 3;
-    positions[offset] = THREE.MathUtils.randFloatSpread(18);
-    positions[offset + 1] = THREE.MathUtils.randFloat(-3.2, 6.2);
-    positions[offset + 2] = THREE.MathUtils.randFloat(-7, 3.5);
+    let x = THREE.MathUtils.randFloatSpread(18);
+    let y = THREE.MathUtils.randFloat(-3.2, 6.2);
+    let z = THREE.MathUtils.randFloat(-7, 3.5);
+
+    if (Math.abs(x) < 2.55 && y > -1.35 && y < 2.85 && z > -2.9) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      x = side * THREE.MathUtils.randFloat(2.9, 8.8);
+      y = THREE.MathUtils.randFloat(-2.8, 5.7);
+      z = THREE.MathUtils.randFloat(-6.8, -3.2);
+    }
+
+    positions[offset] = x;
+    positions[offset + 1] = y;
+    positions[offset + 2] = z;
     const color = index % 5 === 0 ? violet : cyan;
     colors[offset] = color.r;
     colors[offset + 1] = color.g;
@@ -318,8 +330,8 @@ function createCrystalField() {
   const count = embeddedMode ? (window.innerWidth < 720 ? (isIOS ? 5 : 6) : 10) : (window.innerWidth < 720 ? 10 : 18);
   const geometry = registerGeometry(new THREE.OctahedronGeometry(0.32, 0));
   const material = registerMaterial(createCrystalSurface({
-    color: 0x8aefff,
-    emissive: 0x0b3d58,
+    color: 0x9fc7ff,
+    emissive: 0x0b2858,
     emissiveIntensity: 0.28,
     metalness: 0.1,
     roughness: 0.08,
@@ -358,8 +370,8 @@ function createCake() {
   scene.add(cake);
 
   const crystalMaterial = registerMaterial(createCrystalSurface({
-    color: 0x8befff,
-    emissive: 0x062d43,
+    color: 0x9fc9ff,
+    emissive: 0x08214d,
     emissiveIntensity: 0.16,
     metalness: 0.08,
     roughness: 0.07,
@@ -374,7 +386,7 @@ function createCake() {
   }));
   const crystalWhite = registerMaterial(createCrystalSurface({
     color: 0xe8fdff,
-    emissive: 0x173f55,
+    emissive: 0x20376b,
     emissiveIntensity: 0.18,
     metalness: 0.04,
     roughness: 0.05,
@@ -395,8 +407,8 @@ function createCake() {
     opacity: 0.42,
   }));
   const plateMaterial = registerMaterial(createCrystalSurface({
-    color: 0xb9f5ff,
-    emissive: 0x0a3a55,
+    color: 0xd3e9ff,
+    emissive: 0x102b63,
     emissiveIntensity: 0.22,
     metalness: 0.22,
     roughness: 0.1,
@@ -509,7 +521,7 @@ function createPlaque() {
   context.textBaseline = "middle";
   context.font = '800 64px Georgia, "Times New Roman", serif';
   context.fillStyle = "rgba(229, 253, 255, 0.96)";
-  context.shadowColor = "rgba(91, 236, 255, 0.9)";
+  context.shadowColor = "rgba(132, 170, 255, 0.86)";
   context.shadowBlur = 26;
   context.fillText("FOR YOU", canvas.width / 2, canvas.height / 2);
 
@@ -556,7 +568,7 @@ function drawCountdownText(text, isFinal = false) {
     ? '800 176px "Microsoft YaHei", "PingFang SC", sans-serif'
     : '700 382px Georgia, "Times New Roman", serif';
 
-  context.shadowColor = "rgba(70, 230, 255, 0.84)";
+  context.shadowColor = "rgba(126, 170, 255, 0.78)";
   context.shadowBlur = isFinal ? 50 : 70;
   context.strokeStyle = "rgba(196, 249, 255, 0.86)";
   context.lineWidth = isFinal ? 5 : 8;
@@ -564,8 +576,8 @@ function drawCountdownText(text, isFinal = false) {
 
   const fill = context.createLinearGradient(0, 90, 0, 430);
   fill.addColorStop(0, "#ffffff");
-  fill.addColorStop(0.4, "#baf9ff");
-  fill.addColorStop(0.74, "#8dddf7");
+  fill.addColorStop(0.4, "#dce9ff");
+  fill.addColorStop(0.74, "#9dbdff");
   fill.addColorStop(1, "#bca9ff");
   context.fillStyle = fill;
   context.fillText(text, width / 2, height / 2 + 8);
@@ -584,9 +596,9 @@ function createGlowTexture() {
   const context = canvas.getContext("2d");
   const gradient = context.createRadialGradient(48, 48, 0, 48, 48, 48);
   gradient.addColorStop(0, "rgba(255,255,255,1)");
-  gradient.addColorStop(0.18, "rgba(204,250,255,0.9)");
-  gradient.addColorStop(0.5, "rgba(101,232,255,0.28)");
-  gradient.addColorStop(1, "rgba(101,232,255,0)");
+  gradient.addColorStop(0.18, "rgba(220,233,255,0.9)");
+  gradient.addColorStop(0.5, "rgba(126,170,255,0.26)");
+  gradient.addColorStop(1, "rgba(126,170,255,0)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   const texture = new THREE.CanvasTexture(canvas);
@@ -622,6 +634,27 @@ function bindEvents() {
   canvas.addEventListener("pointercancel", () => {
     experienceState.dragging = false;
   });
+}
+
+function warmGpuPrograms() {
+  if (!renderer || !scene || !camera || !cake || !numberSprite || !numberMaterial) return;
+
+  const cakeWasVisible = cake.visible;
+  const spriteWasVisible = numberSprite.visible;
+  const spriteOpacity = numberMaterial.opacity;
+  cake.visible = true;
+  numberSprite.visible = true;
+  numberMaterial.opacity = 0.001;
+
+  try {
+    if (typeof renderer.compile === "function") renderer.compile(scene, camera);
+    renderScene();
+  } catch (_error) {}
+
+  numberMaterial.opacity = spriteOpacity;
+  numberSprite.visible = spriteWasVisible;
+  cake.visible = cakeWasVisible;
+  renderScene();
 }
 
 function startCountdown() {
@@ -839,7 +872,7 @@ function renderFrame(now) {
   stars.rotation.x = Math.sin(elapsed * 0.08) * 0.02;
   crystalField.rotation.y -= delta * 0.025;
   halo.material.opacity = 0.16 + Math.sin(elapsed * 0.72) * 0.025;
-  flameLight.intensity = 11 + Math.sin(elapsed * 5.1) * 1.4;
+  flameLight.intensity = 7.4 + Math.sin(elapsed * 5.1) * 0.8;
 
   flames.forEach((flame, index) => {
     const pulse = 1 + Math.sin(elapsed * 6.2 + index * 0.8) * 0.08;
@@ -905,28 +938,28 @@ function onResize() {
 }
 
 function getPixelRatioLimit(width) {
-  if (appleDesktopRendering) return embeddedMode ? 1.05 : 1.35;
+  if (appleDesktopRendering) return embeddedMode ? 1.15 : 1.8;
   if (embeddedMode) return width < 700 || compactRendering ? 1 : 1.15;
   if (compactRendering) return width < 700 ? 1.25 : 1.5;
   return width < 700 ? 1.45 : 1.8;
 }
 
 function getBloomResolutionScale(width) {
-  if (appleDesktopRendering) return embeddedMode ? 0.52 : 0.72;
+  if (appleDesktopRendering) return embeddedMode ? 0.66 : 0.94;
   if (embeddedMode) return width < 700 || compactRendering ? 0.58 : 0.66;
   return compactRendering ? 0.76 : 0.94;
 }
 
 function getBloomBaseStrength() {
-  return appleDesktopRendering ? 0.42 : 0.5;
+  return 0.5;
 }
 
 function getBloomClimaxStrength() {
-  return appleDesktopRendering ? 0.58 : 0.74;
+  return 0.74;
 }
 
 function getBloomFinalStrength() {
-  return appleDesktopRendering ? 0.66 : 0.86;
+  return 0.86;
 }
 
 function getBaseCameraZ() {
