@@ -515,6 +515,15 @@ button {
   backface-visibility: hidden;
 }
 
+.meteor-video {
+  opacity: 0;
+  transition: opacity 520ms ease;
+}
+
+.page-meteor.active .meteor-video.is-ready {
+  opacity: 1;
+}
+
 .meteor-retouch {
   position: absolute;
   left: 0;

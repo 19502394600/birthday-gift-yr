@@ -26,6 +26,8 @@
     meteorRevealMs: 0,
     meteorSubDelayMs: 0,
     meteorButtonTimer: null,
+    meteorReadyTimer: null,
+    meteorPlayToken: 0,
     countdownTimer: null,
     countdownRaf: 0,
     countdownController: null,
@@ -43,7 +45,7 @@
     lastRequestedMusicPage: "loginPage",
     countdownMusicPrimed: false,
     mainMusicPrimed: false,
-    warmedMediaUrls: new Set(),
+    warmedMediaUrls: new Map(),
     filmAudioCtx: null,
     projectorNodes: null,
     musicVolumeRaf: 0,
@@ -156,19 +158,29 @@
     } catch (_error) {
       return;
     }
-    if (state.warmedMediaUrls.has(absoluteUrl)) return;
-    state.warmedMediaUrls.add(absoluteUrl);
+    const previousWarmSize = state.warmedMediaUrls.get(absoluteUrl) || 0;
+    if (previousWarmSize >= byteCount) return;
+    state.warmedMediaUrls.set(absoluteUrl, byteCount);
 
     const headers = new Headers();
-    headers.set("Range", `bytes=0-${Math.max(0, byteCount - 1)}`);
+    headers.set("Range", `bytes=${previousWarmSize}-${Math.max(0, byteCount - 1)}`);
     fetch(absoluteUrl, {
       mode: "cors",
       cache: "force-cache",
       headers,
       priority: "low",
     })
-      .then((response) => response.arrayBuffer())
-      .catch(() => {});
+      .then((response) => {
+        const length = Number(response.headers.get("content-length") || 0);
+        if (!response.ok || (response.status !== 206 && length > byteCount * 2)) throw new Error("media warmup skipped");
+        return response.arrayBuffer();
+      })
+      .catch(() => {
+        if (state.warmedMediaUrls.get(absoluteUrl) === byteCount) {
+          if (previousWarmSize > 0) state.warmedMediaUrls.set(absoluteUrl, previousWarmSize);
+          else state.warmedMediaUrls.delete(absoluteUrl);
+        }
+      });
   }
 
   function showPage(id) {
@@ -239,6 +251,12 @@
     state.countdownController = null;
     window.clearTimeout(state.meteorButtonTimer);
     state.meteorButtonTimer = null;
+    if (nextId !== "meteorPage") {
+      window.clearTimeout(state.meteorReadyTimer);
+      state.meteorReadyTimer = null;
+      state.meteorPlayToken += 1;
+      if (dom.meteorVideo) dom.meteorVideo.classList.remove("is-ready");
+    }
 
     if (nextId !== "blessingPage") window.clearTimeout(state.blessingTimer);
     if (nextId !== "finalFireworksPage") {
@@ -476,6 +494,7 @@
 
   function prepareDecorativeVideo(video, preload = "metadata") {
     if (!video) return;
+    video.crossOrigin = "anonymous";
     video.muted = true;
     video.defaultMuted = true;
     video.volume = 0;
@@ -485,16 +504,74 @@
     video.preload = preload;
   }
 
+  function useMeteorVideoFallback() {
+    if (!dom.meteorVideo || !dom.meteorVideo.dataset.fallbackSrc) return false;
+    const fallback = assetUrl(dom.meteorVideo.dataset.fallbackSrc);
+    if (dom.meteorVideo.getAttribute("src") === fallback || dom.meteorVideo.currentSrc === fallback) return false;
+    dom.meteorVideo.pause();
+    dom.meteorVideo.removeAttribute("src");
+    dom.meteorVideo.querySelectorAll("source").forEach((source) => source.removeAttribute("src"));
+    dom.meteorVideo.src = fallback;
+    try {
+      dom.meteorVideo.load();
+    } catch (_error) {}
+    return true;
+  }
+
+  function warmMeteorMedia() {
+    if (dom.meteorVideo && !appleMobile) {
+      prepareDecorativeVideo(dom.meteorVideo, "auto");
+      ensureMediaElementSource(dom.meteorVideo);
+      warmMediaRange(getMediaSource(dom.meteorVideo), appleDesktop ? 4194304 : 3145728);
+      if (dom.meteorVideo.dataset.fallbackSrc) warmMediaRange(dom.meteorVideo.dataset.fallbackSrc, 524288);
+    }
+    if (dom.meteorAudio) warmMediaRange(getMediaSource(dom.meteorAudio), 786432);
+  }
+
+  function armMeteorVideoReady(timeoutMs = 1200) {
+    if (!dom.meteorVideo || appleMobile) return;
+    window.clearTimeout(state.meteorReadyTimer);
+    const token = state.meteorPlayToken;
+    const video = dom.meteorVideo;
+    const markReady = () => {
+      if (token !== state.meteorPlayToken || state.page !== "meteorPage") return;
+      video.classList.add("is-ready");
+      window.clearTimeout(state.meteorReadyTimer);
+      state.meteorReadyTimer = null;
+    };
+    if (video.readyState >= 3) {
+      markReady();
+      return;
+    }
+    video.addEventListener("loadeddata", markReady, { once: true });
+    video.addEventListener("canplay", markReady, { once: true });
+    video.addEventListener("playing", markReady, { once: true });
+    state.meteorReadyTimer = window.setTimeout(() => {
+      if (token !== state.meteorPlayToken || state.page !== "meteorPage") return;
+      if (video.readyState < 2 && useMeteorVideoFallback()) {
+        video.currentTime = 0;
+        video.play().catch(() => {});
+        state.meteorReadyTimer = window.setTimeout(markReady, 1100);
+        return;
+      }
+      markReady();
+    }, timeoutMs);
+  }
+
   function playMeteorOriginal() {
     pauseAudio(dom.countdownMusic);
     pauseAudio(dom.confessionMusic);
 
     if (appleDevice) {
       if (dom.meteorVideo && !appleMobile) {
-        prepareDecorativeVideo(dom.meteorVideo, "metadata");
-        ensureMediaElementSource(dom.meteorVideo);
+        warmMeteorMedia();
         dom.meteorVideo.currentTime = 0;
-        dom.meteorVideo.play().catch(() => {});
+        armMeteorVideoReady(appleDesktop ? 1500 : 1200);
+        dom.meteorVideo.play().catch(() => {
+          if (!useMeteorVideoFallback()) return;
+          armMeteorVideoReady(1700);
+          dom.meteorVideo.play().catch(() => {});
+        });
       } else if (dom.meteorVideo) {
         dom.meteorVideo.pause();
       }
@@ -508,17 +585,28 @@
     }
 
     if (!dom.meteorVideo) return;
+    warmMeteorMedia();
     ensureMediaElementSource(dom.meteorVideo);
     dom.meteorVideo.removeAttribute("muted");
     dom.meteorVideo.muted = false;
     dom.meteorVideo.defaultMuted = false;
     dom.meteorVideo.volume = 0.95;
     dom.meteorVideo.currentTime = 0;
+    armMeteorVideoReady(1200);
     try {
       const playResult = dom.meteorVideo.play();
       if (playResult && typeof playResult.catch === "function") {
         playResult.catch(() => {
           if (state.page !== "meteorPage") return;
+          if (useMeteorVideoFallback()) {
+            dom.meteorVideo.removeAttribute("muted");
+            dom.meteorVideo.muted = false;
+            dom.meteorVideo.defaultMuted = false;
+            dom.meteorVideo.volume = 0.95;
+            armMeteorVideoReady(1500);
+            dom.meteorVideo.play().catch(() => {});
+            return;
+          }
           if (dom.meteorAudio) {
             dom.meteorAudio.currentTime = 0;
             playAudio(dom.meteorAudio, "流星原声", "", 0.9);
@@ -535,6 +623,10 @@
   }
 
   function startMeteorPage() {
+    state.meteorPlayToken += 1;
+    window.clearTimeout(state.meteorReadyTimer);
+    state.meteorReadyTimer = null;
+    if (dom.meteorVideo) dom.meteorVideo.classList.remove("is-ready");
     dom.meteorNextBtn.classList.remove("visible");
     dom.meteorNextBtn.disabled = true;
     dom.meteorTitle.querySelectorAll(".meteor-title-char").forEach((char) => {
@@ -552,8 +644,7 @@
     }, state.meteorRevealMs);
 
     if (dom.meteorVideo && !appleMobile) {
-      prepareDecorativeVideo(dom.meteorVideo, "metadata");
-      ensureMediaElementSource(dom.meteorVideo);
+      warmMeteorMedia();
     }
 
     if (state.audioUnlocked) playMeteorOriginal();
@@ -1198,11 +1289,15 @@
     ensureVideosRendered();
     const players = Array.from(dom.videoGrid.querySelectorAll("video"));
     players.forEach((player) => prepareBlessingVideoElement(player, loadMode));
-    if (state.videosPrimed || !players.length) return;
-    state.videosPrimed = true;
+    if (!players.length) return;
+    const warmSize = loadMode === "auto"
+      ? appleMobile ? 4194304 : 8388608
+      : appleMobile ? 2097152 : 4194304;
     players.forEach((player) => {
-      warmMediaRange(player.dataset.src, appleMobile ? 786432 : 1048576);
+      warmMediaRange(player.dataset.src, warmSize);
+      if (player.dataset.fallbackSrc && loadMode === "auto") warmMediaRange(player.dataset.fallbackSrc, 524288);
     });
+    state.videosPrimed = true;
   }
 
   function setBlessingVideoSource(player, source) {
@@ -1265,7 +1360,8 @@
     player.setAttribute("playsinline", "");
     player.setAttribute("webkit-playsinline", "");
     if (source && !player.currentSrc && !player.getAttribute("src")) setBlessingVideoSource(player, source);
-    if (loadMode !== "none" && (player.readyState < 1 || !player.currentSrc)) {
+    const needsLoad = loadMode === "auto" ? player.readyState < 2 : player.readyState < 1;
+    if (loadMode !== "none" && (needsLoad || !player.currentSrc)) {
       try {
         player.load();
       } catch (_error) {}
@@ -1469,6 +1565,7 @@
     dom.heartStartBtn.classList.remove("visible");
     dom.heartStartBtn.disabled = true;
     if (dom.blessingPage) dom.blessingPage.scrollTop = 0;
+    scheduleVideosWarm(appleMobile ? 3200 : 2200);
 
     if (state.blessingDone) {
       showFullBlessing();
@@ -1922,9 +2019,9 @@
   }
 
   function init() {
-    prepareDecorativeVideo(dom.meteorVideo, appleMobile ? "none" : "metadata");
+    prepareDecorativeVideo(dom.meteorVideo, appleMobile ? "none" : "auto");
     prepareDecorativeVideo(dom.fireworksVideo, appleMobile ? "none" : "metadata");
-    if (!appleMobile) ensureMediaElementSource(dom.meteorVideo);
+    if (!appleMobile) warmMeteorMedia();
     prepareMeteorText();
     setBlessingSpacing();
     dom.photoCounter.textContent = `01 / ${config.photos.length}`;

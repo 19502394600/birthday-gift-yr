@@ -7,6 +7,8 @@
     <title>小杨同学 | 生日快乐</title>
     <meta name="description" content="私人生日沉浸式纪念网站" />
     <link rel="preconnect" href="https://19502394600.github.io" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin />
     <script>
       (function () {
         var root = document.documentElement;
@@ -28,7 +30,7 @@
         window.addEventListener("orientationchange", setAppHeight, { passive: true });
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260906k" />
+    <link rel="stylesheet" href="styles.css?v=20260906l" />
   </head>
   <body>
     <div id="app">
@@ -44,8 +46,8 @@
       </section>
 
       <section class="page page-meteor" id="meteorPage" data-chapter="流星雨">
-        <video id="meteorVideo" class="meteor-video" loop muted playsinline webkit-playsinline preload="metadata">
-          <source data-src="https://19502394600.github.io/birthday-gift-yr/assets/reference/meteor-reference.mp4" type="video/mp4" />
+        <video id="meteorVideo" class="meteor-video" loop muted playsinline webkit-playsinline preload="auto" data-fallback-src="https://19502394600.github.io/birthday-gift-yr/assets/reference/meteor-reference.mp4">
+          <source data-src="https://cdn.jsdelivr.net/gh/19502394600/birthday-gift-yr@main/assets/reference/meteor-reference.mp4" type="video/mp4" />
         </video>
         <div class="meteor-retouch"></div>
         <div class="meteor-dim"></div>
@@ -62,7 +64,7 @@
         <iframe
           class="countdown-frame"
           id="countdownFrame"
-          data-src="countdown-3d-demo/index.html?embedded=1&amp;v=20260906k"
+          data-src="countdown-3d-demo/index.html?embedded=1&amp;v=20260906l"
           title="3D 水晶生日倒计时和蛋糕"
           allow="autoplay; fullscreen"
         ></iframe>
@@ -209,14 +211,14 @@
     <audio id="countdownMusic" preload="metadata" loop>
       <source src="https://19502394600.github.io/birthday-gift-yr/assets/music/countdown-background.m4a" type="audio/mp4" />
     </audio>
-    <audio id="meteorAudio" preload="auto">
+    <audio id="meteorAudio" preload="metadata">
       <source src="https://19502394600.github.io/birthday-gift-yr/assets/reference/meteor-reference.mp4" />
     </audio>
     <audio id="confessionMusic" preload="metadata" loop>
       <source src="https://19502394600.github.io/birthday-gift-yr/assets/music/main-background.m4a" type="audio/mp4" />
     </audio>
 
-    <script src="src/data/story-config.js?v=20260906k"></script>
-    <script src="src/app.js?v=20260906k"></script>
+    <script src="src/data/story-config.js?v=20260906l"></script>
+    <script src="src/app.js?v=20260906l"></script>
   </body>
 </html>
