@@ -94,6 +94,7 @@
         role: "大家的祝福",
         title: "想对你说的话",
         src: "https://19502394600.github.io/birthday-gift-yr/assets/videos/blessing.mp4",
+        fallbackSrc: "https://raw.githubusercontent.com/19502394600/birthday-gift-yr/main/assets/videos/blessing.mp4",
         poster: "",
         hint: "",
       },

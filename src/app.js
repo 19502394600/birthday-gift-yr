@@ -43,6 +43,7 @@
     lastRequestedMusicPage: "loginPage",
     countdownMusicPrimed: false,
     mainMusicPrimed: false,
+    warmedMediaUrls: new Set(),
     filmAudioCtx: null,
     projectorNodes: null,
     musicVolumeRaf: 0,
@@ -57,6 +58,7 @@
     countdownFallbackPhase: 0,
     videosWarmTimer: null,
     videosRendered: false,
+    videosPrimed: false,
     fireworksWarmed: false,
     heartScatterTimer: null,
     heartContinueTimer: null,
@@ -64,6 +66,7 @@
   };
 
   const pages = Array.from(document.querySelectorAll(".page"));
+  const videoWatchTimers = new WeakMap();
   const dom = {
     passwordInput: document.getElementById("passwordInput"),
     enterBtn: document.getElementById("enterBtn"),
@@ -134,6 +137,38 @@
       if (sourcePath && !source.getAttribute("src")) source.setAttribute("src", assetUrl(sourcePath));
     });
     media.load();
+  }
+
+  function getMediaSource(media) {
+    if (!media) return "";
+    const current = media.currentSrc || media.getAttribute("src");
+    if (current) return current;
+    const source = media.querySelector("source");
+    if (!source) return "";
+    return source.getAttribute("src") || source.getAttribute("data-src") || "";
+  }
+
+  function warmMediaRange(url, byteCount = 524288) {
+    if (!url || !window.fetch) return;
+    let absoluteUrl = "";
+    try {
+      absoluteUrl = new URL(url, window.location.href).href;
+    } catch (_error) {
+      return;
+    }
+    if (state.warmedMediaUrls.has(absoluteUrl)) return;
+    state.warmedMediaUrls.add(absoluteUrl);
+
+    const headers = new Headers();
+    headers.set("Range", `bytes=0-${Math.max(0, byteCount - 1)}`);
+    fetch(absoluteUrl, {
+      mode: "cors",
+      cache: "force-cache",
+      headers,
+      priority: "low",
+    })
+      .then((response) => response.arrayBuffer())
+      .catch(() => {});
   }
 
   function showPage(id) {
@@ -270,12 +305,14 @@
     if (!dom.confessionMusic || state.mainMusicPrimed) return;
     state.mainMusicPrimed = true;
     prepareAudioElement(dom.confessionMusic);
+    warmMediaRange(getMediaSource(dom.confessionMusic), 1572864);
   }
 
   function primeCountdownMusic() {
     if (!dom.countdownMusic || state.countdownMusicPrimed) return;
     state.countdownMusicPrimed = true;
     prepareAudioElement(dom.countdownMusic);
+    warmMediaRange(getMediaSource(dom.countdownMusic), 524288);
   }
 
   function resumeFilmAudioContext() {
@@ -1143,13 +1180,13 @@
       .join("");
   }
 
-  function scheduleVideosWarm() {
-    if (appleDevice) return;
-    if (state.videosRendered || state.videosWarmTimer) return;
+  function scheduleVideosWarm(delay) {
+    if (state.videosPrimed || state.videosWarmTimer) return;
+    const warmDelay = Number.isFinite(delay) ? delay : appleMobile ? 2600 : appleDesktop ? 1800 : 2200;
     state.videosWarmTimer = window.setTimeout(() => {
       state.videosWarmTimer = null;
-      ensureVideosRendered();
-    }, 2200);
+      primeBlessingVideos("metadata");
+    }, warmDelay);
   }
 
   function ensureVideosRendered() {
@@ -1157,17 +1194,78 @@
     renderVideos();
   }
 
+  function primeBlessingVideos(loadMode = "metadata") {
+    ensureVideosRendered();
+    const players = Array.from(dom.videoGrid.querySelectorAll("video"));
+    players.forEach((player) => prepareBlessingVideoElement(player, loadMode));
+    if (state.videosPrimed || !players.length) return;
+    state.videosPrimed = true;
+    players.forEach((player) => {
+      warmMediaRange(player.dataset.src, appleMobile ? 786432 : 1048576);
+    });
+  }
+
+  function setBlessingVideoSource(player, source) {
+    if (!player || !source) return false;
+    if (player.getAttribute("src") === source || player.currentSrc === source) {
+      player.dataset.activeSrc = source;
+      return true;
+    }
+    player.setAttribute("src", source);
+    player.dataset.activeSrc = source;
+    return true;
+  }
+
+  function useBlessingVideoFallback(player, prompt) {
+    const fallback = player && player.dataset.fallbackSrc;
+    if (!fallback || player.dataset.activeSrc === fallback) return false;
+    setVideoPrompt(prompt, "正在切换备用通道", true);
+    player.pause();
+    player.removeAttribute("src");
+    try {
+      player.load();
+    } catch (_error) {}
+    setBlessingVideoSource(player, fallback);
+    try {
+      player.load();
+    } catch (_error) {}
+    return true;
+  }
+
+  function clearBlessingVideoWatchdog(player) {
+    const timer = videoWatchTimers.get(player);
+    if (!timer) return;
+    window.clearTimeout(timer);
+    videoWatchTimers.delete(player);
+  }
+
+  function startBlessingVideoWatchdog(player, prompt) {
+    clearBlessingVideoWatchdog(player);
+    const timer = window.setTimeout(() => {
+      videoWatchTimers.delete(player);
+      if (state.page !== "videosPage" || player.paused || player.ended || player.readyState >= 3) return;
+      if (useBlessingVideoFallback(player, prompt)) {
+        prepareBlessingVideoElement(player, "auto");
+        const retry = player.play();
+        if (retry && typeof retry.catch === "function") retry.catch(() => setVideoPrompt(prompt, "视频加载慢，点我重试", false));
+        startBlessingVideoWatchdog(player, prompt);
+        return;
+      }
+      setVideoPrompt(prompt, "视频缓冲中，点我重试", false);
+    }, appleDevice ? 6500 : 8200);
+    videoWatchTimers.set(player, timer);
+  }
+
   function prepareBlessingVideoElement(player, loadMode = "metadata") {
     if (!player) return;
-    const source = player.dataset.src;
+    const source = player.dataset.activeSrc || player.dataset.src;
     player.preload = loadMode;
+    player.crossOrigin = "anonymous";
     player.playsInline = true;
     player.setAttribute("playsinline", "");
     player.setAttribute("webkit-playsinline", "");
-    if (source && !player.currentSrc && !player.getAttribute("src")) {
-      player.src = source;
-    }
-    if (loadMode === "auto" && player.readyState < 1) {
+    if (source && !player.currentSrc && !player.getAttribute("src")) setBlessingVideoSource(player, source);
+    if (loadMode !== "none" && (player.readyState < 1 || !player.currentSrc)) {
       try {
         player.load();
       } catch (_error) {}
@@ -1191,7 +1289,15 @@
     prepareBlessingVideoElement(player, "auto");
     setVideoPrompt(prompt, "正在打开视频", true);
 
-    const fail = () => {
+    const fail = (allowFallback = true) => {
+      clearBlessingVideoWatchdog(player);
+      if (allowFallback && useBlessingVideoFallback(player, prompt)) {
+        prepareBlessingVideoElement(player, "auto");
+        const retry = player.play();
+        if (retry && typeof retry.catch === "function") retry.catch(() => fail(false));
+        startBlessingVideoWatchdog(player, prompt);
+        return;
+      }
       setVideoPrompt(prompt, "视频加载慢，点我重试", false);
       resumeMainMusic();
     };
@@ -1205,16 +1311,19 @@
         player.load();
       }
       const playResult = player.play();
+      startBlessingVideoWatchdog(player, prompt);
       if (playResult && typeof playResult.catch === "function") {
         playResult.catch(() => {
           window.setTimeout(() => {
             prepareBlessingVideoElement(player, "auto");
-            player.play().catch(fail);
+            const retry = player.play();
+            startBlessingVideoWatchdog(player, prompt);
+            if (retry && typeof retry.catch === "function") retry.catch(() => fail(true));
           }, 260);
         });
       }
     } catch (_error) {
-      fail();
+      fail(true);
     }
   }
 
@@ -1226,9 +1335,12 @@
     config.videos.forEach((video, index) => {
       const article = document.createElement("article");
       article.className = "video-card";
+      const primarySrc = video.src ? escapeHtml(assetUrl(video.src)) : "";
+      const fallbackSrc = video.fallbackSrc ? ` data-fallback-src="${escapeHtml(assetUrl(video.fallbackSrc))}"` : "";
+      const poster = video.poster ? ` poster="${escapeHtml(assetUrl(video.poster))}"` : "";
       const media = video.src
         ? `
-            <video src="${assetUrl(video.src)}" data-src="${assetUrl(video.src)}" ${video.poster ? `poster="${assetUrl(video.poster)}"` : ""} controls playsinline webkit-playsinline preload="metadata"></video>
+            <video data-src="${primarySrc}"${fallbackSrc}${poster} controls playsinline webkit-playsinline crossorigin="anonymous" preload="metadata"></video>
             <button class="video-play-prompt" type="button" aria-label="播放祝福视频">
               <i aria-hidden="true"></i>
               <b>点击播放祝福视频</b>
@@ -1252,6 +1364,7 @@
         player.addEventListener("loadedmetadata", () => {
           if (prompt && !prompt.classList.contains("is-hidden")) setVideoPrompt(prompt, "点击播放祝福视频", false);
         });
+        player.addEventListener("canplay", () => clearBlessingVideoWatchdog(player));
         player.addEventListener("play", () => {
           if (prompt) {
             prompt.classList.add("is-hidden");
@@ -1259,22 +1372,40 @@
             prompt.setAttribute("aria-hidden", "true");
             prompt.tabIndex = -1;
           }
+          startBlessingVideoWatchdog(player, prompt);
           lowerMainMusicForVideo();
         });
         player.addEventListener("waiting", () => {
-          if (!player.paused && prompt) setVideoPrompt(prompt, "视频缓冲中", true);
+          if (!player.paused && prompt) {
+            setVideoPrompt(prompt, "视频缓冲中", true);
+            startBlessingVideoWatchdog(player, prompt);
+          }
+        });
+        player.addEventListener("stalled", () => {
+          if (!player.paused && prompt) setVideoPrompt(prompt, "网络有点慢，正在继续缓冲", true);
         });
         player.addEventListener("playing", () => {
+          clearBlessingVideoWatchdog(player);
           if (prompt) {
             prompt.classList.add("is-hidden");
             prompt.classList.remove("is-loading");
           }
         });
         player.addEventListener("error", () => {
-          setVideoPrompt(prompt, "视频加载慢，点我重试", false);
+          clearBlessingVideoWatchdog(player);
+          if (useBlessingVideoFallback(player, prompt)) {
+            prepareBlessingVideoElement(player, "metadata");
+            setVideoPrompt(prompt, "已切换备用通道，点我播放", false);
+          } else {
+            setVideoPrompt(prompt, "视频加载慢，点我重试", false);
+          }
         });
-        player.addEventListener("pause", resumeMainMusic);
+        player.addEventListener("pause", () => {
+          clearBlessingVideoWatchdog(player);
+          resumeMainMusic();
+        });
         player.addEventListener("ended", () => {
+          clearBlessingVideoWatchdog(player);
           player.dataset.completed = "true";
           resumeMainMusic();
           const players = Array.from(dom.videoGrid.querySelectorAll("video"));
@@ -1285,10 +1416,9 @@
   }
 
   function startVideosPage() {
-    ensureVideosRendered();
+    primeBlessingVideos("auto");
     pauseAllVideos();
     const players = Array.from(dom.videoGrid.querySelectorAll("video"));
-    players.forEach((player) => prepareBlessingVideoElement(player, "auto"));
     setVideosNextVisible(players.length > 0 && players.every((player) => player.dataset.completed === "true"));
   }
 
@@ -1420,6 +1550,7 @@
     if (dom.blessingCursor) dom.blessingCursor.hidden = true;
     dom.heartStartBtn.classList.add("visible");
     dom.heartStartBtn.disabled = false;
+    scheduleVideosWarm(appleMobile ? 1800 : 1100);
   }
 
   function fadeAudioVolume(audio, target, duration) {
@@ -1578,6 +1709,7 @@
     clearHeartTimers();
     layer.innerHTML = "";
     dom.heartNextBtn.classList.remove("visible");
+    scheduleVideosWarm(appleMobile ? 2200 : 1400);
 
     const count = appleMobile ? 40 : lowPowerDevice ? (window.innerWidth < 640 ? 52 : 72) : 100;
     const revealStep = reducedMotion ? 8 : appleMobile ? 18 : 26;
