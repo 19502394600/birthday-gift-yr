@@ -65,6 +65,7 @@
     enterBtn: document.getElementById("enterBtn"),
     loginError: document.getElementById("loginError"),
     countdownMusic: document.getElementById("countdownMusic"),
+    meteorAudio: document.getElementById("meteorAudio"),
     confessionMusic: document.getElementById("confessionMusic"),
     meteorVideo: document.getElementById("meteorVideo"),
     meteorTitle: document.getElementById("meteorTitle"),
@@ -200,7 +201,7 @@
       window.clearInterval(state.fireworksTimer);
       state.fireworksTimer = null;
     }
-    if (nextId !== "meteorPage" && dom.meteorVideo) dom.meteorVideo.pause();
+    if (nextId !== "meteorPage") pauseMeteorOriginal();
     if (nextId !== "countdownPage") {
       state.countdownStarted = false;
       postCountdownMessage("birthday-countdown:stop");
@@ -269,6 +270,7 @@
     }
     state.audioUnlocked = true;
     prepareAudioElement(dom.countdownMusic);
+    prepareAudioElement(dom.meteorAudio);
     prepareAudioElement(dom.confessionMusic);
     resumeFilmAudioContext();
     return Promise.resolve();
@@ -277,10 +279,11 @@
   function applyStageMusic(pageId) {
     state.lastRequestedMusicPage = pageId;
     if (!state.audioUnlocked) return;
-    const countdownMusicPages = new Set(["meteorPage", "countdownPage"]);
+    const countdownMusicPages = new Set(["countdownPage"]);
     const mainMusicPages = new Set(["blessingPage", "heartPage", "galleryPage", "videosPage", "messagePage", "finalFireworksPage", "endingPage"]);
 
     if (countdownMusicPages.has(pageId)) {
+      pauseMeteorOriginal();
       pauseAudio(dom.confessionMusic);
       playAudio(dom.countdownMusic, "倒计时音乐", "把倒计时背景.m4a 放到 assets/music/countdown-background.m4a。");
       return;
@@ -288,10 +291,12 @@
 
     pauseAudio(dom.countdownMusic);
     if (mainMusicPages.has(pageId)) {
+      pauseMeteorOriginal();
       playAudio(dom.confessionMusic, "主背景音乐", "把主背景.m4a 放到 assets/music/main-background.m4a。");
       return;
     }
 
+    if (pageId !== "meteorPage") pauseMeteorOriginal();
     pauseAudio(dom.confessionMusic);
   }
 
@@ -346,7 +351,7 @@
     dom.lyricsOverlay.setAttribute("aria-hidden", "false");
   }
 
-  function playAudio(audio, label, missingHint) {
+  function playAudio(audio, label, missingHint, targetVolume) {
     if (!audio) return;
     window.cancelAnimationFrame(state.musicVolumeRaf);
     window.clearTimeout(state.musicDuckTimer);
@@ -354,7 +359,7 @@
     state.musicDuckTimer = null;
     prepareAudioElement(audio);
     audio.muted = false;
-    audio.volume = label === "倒计时音乐" ? 0.42 : mainMusicVolume;
+    audio.volume = Number.isFinite(targetVolume) ? targetVolume : label === "倒计时音乐" ? 0.42 : mainMusicVolume;
     try {
       const playResult = audio.play();
       if (playResult && typeof playResult.catch === "function") {
@@ -371,6 +376,11 @@
 
   function pauseAudio(audio) {
     if (audio) audio.pause();
+  }
+
+  function pauseMeteorOriginal() {
+    if (dom.meteorVideo) dom.meteorVideo.pause();
+    pauseAudio(dom.meteorAudio);
   }
 
   function prepareMeteorText() {
@@ -402,6 +412,47 @@
     video.preload = preload;
   }
 
+  function playMeteorOriginal() {
+    pauseAudio(dom.countdownMusic);
+    pauseAudio(dom.confessionMusic);
+
+    if (appleMobile) {
+      if (dom.meteorVideo) dom.meteorVideo.pause();
+      if (dom.meteorAudio) {
+        dom.meteorAudio.currentTime = 0;
+        dom.meteorAudio.loop = false;
+        playAudio(dom.meteorAudio, "流星原声", "", 0.9);
+      }
+      return;
+    }
+
+    if (!dom.meteorVideo) return;
+    ensureMediaElementSource(dom.meteorVideo);
+    dom.meteorVideo.removeAttribute("muted");
+    dom.meteorVideo.muted = false;
+    dom.meteorVideo.defaultMuted = false;
+    dom.meteorVideo.volume = 0.95;
+    dom.meteorVideo.currentTime = 0;
+    try {
+      const playResult = dom.meteorVideo.play();
+      if (playResult && typeof playResult.catch === "function") {
+        playResult.catch(() => {
+          if (state.page !== "meteorPage") return;
+          if (dom.meteorAudio) {
+            dom.meteorAudio.currentTime = 0;
+            playAudio(dom.meteorAudio, "流星原声", "", 0.9);
+          }
+        });
+      }
+    } catch (_error) {
+      if (state.page !== "meteorPage") return;
+      if (dom.meteorAudio) {
+        dom.meteorAudio.currentTime = 0;
+        playAudio(dom.meteorAudio, "流星原声", "", 0.9);
+      }
+    }
+  }
+
   function startMeteorPage() {
     dom.meteorNextBtn.classList.remove("visible");
     dom.meteorNextBtn.disabled = true;
@@ -422,9 +473,9 @@
     if (dom.meteorVideo && !appleMobile) {
       prepareDecorativeVideo(dom.meteorVideo, "metadata");
       ensureMediaElementSource(dom.meteorVideo);
-      dom.meteorVideo.currentTime = 0;
-      dom.meteorVideo.play().catch(() => {});
     }
+
+    if (state.audioUnlocked) playMeteorOriginal();
 
     scheduleCountdownWarm();
   }
@@ -991,7 +1042,7 @@
       preload.src = photoPath(next);
     }
 
-    if (state.photoIndex >= Math.max(0, config.photos.length - 3)) ensureVideosRendered();
+    if (!appleDevice && state.photoIndex >= Math.max(0, config.photos.length - 3)) ensureVideosRendered();
   }
 
   function movePhoto(step) {
@@ -1037,7 +1088,7 @@
   }
 
   function scheduleVideosWarm() {
-    if (appleMobile) return;
+    if (appleDevice) return;
     if (state.videosRendered || state.videosWarmTimer) return;
     state.videosWarmTimer = window.setTimeout(() => {
       state.videosWarmTimer = null;
@@ -1050,6 +1101,67 @@
     renderVideos();
   }
 
+  function prepareBlessingVideoElement(player, loadMode = "metadata") {
+    if (!player) return;
+    const source = player.dataset.src;
+    player.preload = loadMode;
+    player.playsInline = true;
+    player.setAttribute("playsinline", "");
+    player.setAttribute("webkit-playsinline", "");
+    if (source && !player.currentSrc && !player.getAttribute("src")) {
+      player.src = source;
+    }
+    if (loadMode === "auto" && player.readyState < 1) {
+      try {
+        player.load();
+      } catch (_error) {}
+    }
+  }
+
+  function setVideoPrompt(prompt, text, loading = false) {
+    if (!prompt) return;
+    const label = prompt.querySelector("b");
+    if (label) label.textContent = text;
+    prompt.classList.toggle("is-loading", loading);
+    prompt.classList.remove("is-hidden");
+    prompt.removeAttribute("aria-hidden");
+    prompt.tabIndex = 0;
+  }
+
+  function playBlessingVideo(player, prompt) {
+    if (!player) return;
+    unlockAudio();
+    pauseAllVideos(player);
+    prepareBlessingVideoElement(player, "auto");
+    setVideoPrompt(prompt, "正在打开视频", true);
+
+    const fail = () => {
+      setVideoPrompt(prompt, "视频加载慢，点我重试", false);
+      resumeMainMusic();
+    };
+
+    try {
+      if (player.error) {
+        const source = player.dataset.src;
+        player.removeAttribute("src");
+        player.load();
+        if (source) player.src = source;
+        player.load();
+      }
+      const playResult = player.play();
+      if (playResult && typeof playResult.catch === "function") {
+        playResult.catch(() => {
+          window.setTimeout(() => {
+            prepareBlessingVideoElement(player, "auto");
+            player.play().catch(fail);
+          }, 260);
+        });
+      }
+    } catch (_error) {
+      fail();
+    }
+  }
+
   function renderVideos() {
     if (state.videosRendered) return;
     state.videosRendered = true;
@@ -1060,7 +1172,7 @@
       article.className = "video-card";
       const media = video.src
         ? `
-            <video src="${assetUrl(video.src)}" ${video.poster ? `poster="${assetUrl(video.poster)}"` : ""} controls playsinline preload="metadata"></video>
+            <video src="${assetUrl(video.src)}" data-src="${assetUrl(video.src)}" ${video.poster ? `poster="${assetUrl(video.poster)}"` : ""} controls playsinline webkit-playsinline preload="metadata"></video>
             <button class="video-play-prompt" type="button" aria-label="播放祝福视频">
               <i aria-hidden="true"></i>
               <b>点击播放祝福视频</b>
@@ -1076,20 +1188,34 @@
       const player = article.querySelector("video");
       const prompt = article.querySelector(".video-play-prompt");
       if (player) {
+        prepareBlessingVideoElement(player);
         player.dataset.completed = "false";
         if (prompt) {
-          prompt.addEventListener("click", () => {
-            unlockAudio();
-            player.play().catch(() => {});
-          });
+          prompt.addEventListener("click", () => playBlessingVideo(player, prompt));
         }
+        player.addEventListener("loadedmetadata", () => {
+          if (prompt && !prompt.classList.contains("is-hidden")) setVideoPrompt(prompt, "点击播放祝福视频", false);
+        });
         player.addEventListener("play", () => {
           if (prompt) {
             prompt.classList.add("is-hidden");
+            prompt.classList.remove("is-loading");
             prompt.setAttribute("aria-hidden", "true");
             prompt.tabIndex = -1;
           }
           lowerMainMusicForVideo();
+        });
+        player.addEventListener("waiting", () => {
+          if (!player.paused && prompt) setVideoPrompt(prompt, "视频缓冲中", true);
+        });
+        player.addEventListener("playing", () => {
+          if (prompt) {
+            prompt.classList.add("is-hidden");
+            prompt.classList.remove("is-loading");
+          }
+        });
+        player.addEventListener("error", () => {
+          setVideoPrompt(prompt, "视频加载慢，点我重试", false);
         });
         player.addEventListener("pause", resumeMainMusic);
         player.addEventListener("ended", () => {
@@ -1106,6 +1232,7 @@
     ensureVideosRendered();
     pauseAllVideos();
     const players = Array.from(dom.videoGrid.querySelectorAll("video"));
+    players.forEach((player) => prepareBlessingVideoElement(player, "auto"));
     setVideosNextVisible(players.length > 0 && players.every((player) => player.dataset.completed === "true"));
   }
 
@@ -1135,9 +1262,9 @@
     fadeAudioVolume(dom.confessionMusic, mainMusicVolume, 620);
   }
 
-  function pauseAllVideos() {
+  function pauseAllVideos(except = null) {
     document.querySelectorAll("video").forEach((video) => {
-      if (video.id !== "meteorVideo" && video.id !== "fireworksVideo") video.pause();
+      if (video !== except && video.id !== "meteorVideo" && video.id !== "fireworksVideo") video.pause();
     });
   }
 
@@ -1523,7 +1650,10 @@
       return;
     }
 
-    if (state.page === "meteorPage" && dom.meteorVideo && !appleMobile) dom.meteorVideo.play().catch(() => {});
+    if (state.page === "meteorPage" && state.audioUnlocked) {
+      playMeteorOriginal();
+      return;
+    }
     if (state.page === "finalFireworksPage" && dom.fireworksVideo && !appleMobile) dom.fireworksVideo.play().catch(() => {});
     if (state.audioUnlocked) applyStageMusic(state.page);
     if (state.page === "galleryPage") startProjectorSound();

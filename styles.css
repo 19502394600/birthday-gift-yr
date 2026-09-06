@@ -1451,6 +1451,16 @@ button {
   border-left: 17px solid #fff;
 }
 
+.video-play-prompt.is-loading i::before {
+  width: 24px;
+  height: 24px;
+  margin-left: 0;
+  border: 3px solid rgba(255, 255, 255, 0.42);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: video-loading-spin 850ms linear infinite;
+}
+
 .video-play-prompt b {
   font-size: 17px;
 }
@@ -2028,6 +2038,12 @@ button {
   }
   to {
     transform: translate3d(1.5%, 1%, 0) scale(1.04);
+  }
+}
+
+@keyframes video-loading-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

@@ -28,7 +28,7 @@
         window.addEventListener("orientationchange", setAppHeight, { passive: true });
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260905t" />
+    <link rel="stylesheet" href="styles.css?v=20260906a" />
   </head>
   <body>
     <div id="app">
@@ -62,7 +62,7 @@
         <iframe
           class="countdown-frame"
           id="countdownFrame"
-          data-src="countdown-3d-demo/index.html?embedded=1&amp;v=20260905t"
+          data-src="countdown-3d-demo/index.html?embedded=1&amp;v=20260906a"
           title="3D 水晶生日倒计时和蛋糕"
           allow="autoplay; fullscreen"
         ></iframe>
@@ -209,11 +209,14 @@
     <audio id="countdownMusic" preload="metadata" loop>
       <source src="assets/music/countdown-background.m4a" type="audio/mp4" />
     </audio>
+    <audio id="meteorAudio" preload="metadata">
+      <source src="assets/reference/meteor-reference.mp4" type="video/mp4" />
+    </audio>
     <audio id="confessionMusic" preload="metadata" loop>
       <source src="assets/music/main-background.m4a" type="audio/mp4" />
     </audio>
 
-    <script src="src/data/story-config.js?v=20260905t"></script>
-    <script src="src/app.js?v=20260905t"></script>
+    <script src="src/data/story-config.js?v=20260906a"></script>
+    <script src="src/app.js?v=20260906a"></script>
   </body>
 </html>
