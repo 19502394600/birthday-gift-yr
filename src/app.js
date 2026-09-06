@@ -254,7 +254,7 @@
   function prepareAudioElement(audio) {
     if (!audio) return;
     audio.preload = "auto";
-    if (audio.readyState === 0 && audio.networkState === 0) {
+    if (audio.readyState < 1 || !audio.currentSrc) {
       try {
         audio.load();
       } catch (_error) {}
