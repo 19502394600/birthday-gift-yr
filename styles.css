@@ -567,20 +567,38 @@ button {
 
 .meteor-title {
   color: #fff8fc;
-  font-family: "Arial Rounded MT Bold", "Hiragino Maru Gothic ProN", var(--font-cn);
-  font-weight: 900;
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+  font-weight: 800;
   letter-spacing: 0.08em;
+  -webkit-text-stroke: 1.1px rgba(255, 126, 190, 0.72);
+  paint-order: stroke fill;
   text-shadow:
-    0 0 14px rgba(255, 204, 226, 0.9),
-    0 0 28px rgba(255, 168, 205, 0.45),
+    0 0 4px rgba(255, 255, 255, 0.95),
+    0 0 13px rgba(255, 118, 189, 0.92),
+    0 0 30px rgba(255, 73, 158, 0.6),
+    0 0 54px rgba(255, 151, 207, 0.42),
     0 6px 18px rgba(19, 18, 48, 0.32);
 }
 
 .meteor-title-char {
   display: inline-block;
+  position: relative;
+  font-family: inherit;
+  font-weight: inherit;
   opacity: 0;
   transform: translateY(16px) scale(0.84);
   filter: blur(1px);
+  isolation: isolate;
+}
+
+.meteor-title-char::before {
+  content: "";
+  position: absolute;
+  inset: -0.18em -0.13em;
+  z-index: -1;
+  border-radius: 45%;
+  background: radial-gradient(circle, rgba(255, 110, 188, 0.34) 0 34%, rgba(255, 174, 218, 0.2) 52%, transparent 74%);
+  filter: blur(7px);
 }
 
 .meteor-title-char.is-visible {
